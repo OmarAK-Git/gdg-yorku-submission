@@ -1,0 +1,16 @@
+{
+  "run": "replace-with-slug",
+  "status": "planned",
+  "current_task": null,
+  "blocked": false,
+  "blockers": [],
+  "last_updated": "YYYY-MM-DD",
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "status": "pending",
+      "owner": "agent",
+      "notes": ""
+    }
+  ]
+}
