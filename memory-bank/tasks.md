@@ -14,7 +14,7 @@ This file tracks the status, dependencies, and references for all implementation
   - **Description**: Implement stable ID generation with occurrence ordinals for co-located findings.
   - **Dependencies**: Task 2
   - **References**: [R8]
-- [ ] **Task 4 — FastAPI Walking Skeleton + Orchestrator Seam**
+- [x] **Task 4 — FastAPI Walking Skeleton + Orchestrator Seam**
   - **Description**: Implement upload API with stubs, Orchestrator seam interface, and plain-Python vs. ADK conformance test.
   - **Dependencies**: Tasks 1, 2, 3
   - **References**: [R8]

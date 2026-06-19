@@ -43,4 +43,5 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 filterwarnings = [
     "error",
+    "ignore::starlette.exceptions.StarletteDeprecationWarning",
 ]

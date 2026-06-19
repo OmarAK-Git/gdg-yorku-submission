@@ -1,0 +1,40 @@
+{
+  "run": "task-4",
+  "status": "completed",
+  "current_task": null,
+  "blocked": false,
+  "blockers": [],
+  "last_updated": "2026-06-19",
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Create Orchestrator interface and two implementations."
+    },
+    {
+      "id": "TASK-002",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Write conformance tests."
+    },
+    {
+      "id": "TASK-003",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Implement FastAPI skeleton app."
+    },
+    {
+      "id": "TASK-004",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Write API skeleton tests."
+    },
+    {
+      "id": "TASK-005",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Run all tests."
+    }
+  ]
+}

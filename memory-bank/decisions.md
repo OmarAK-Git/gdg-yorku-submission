@@ -31,3 +31,5 @@ This file records major architectural and design decisions, their contexts, and 
 - **Rationale**: Standardizes diverse client terminology with a reporting floor of `high`.
 - **Decision**: Syntactic coordinate validation.
 - **Rationale**: The validator verifies that all finding coordinates (`evidence_ref`) point to lines within the actual corpus/SoT bounds to prevent hallucinated citations.
+- **Decision**: Account for contested findings by placing them in the `omitted` ledger bucket with the reason prefix `"Contested:"`.
+- **Rationale**: Keeps the conservation equation clean (`included U merged_inputs U omitted == total_inputs`) and prevents active contested findings from appearing in the main report findings list. The Task 14 validator must explicitly exempt contested findings (present in `contested_items`) from the "reject any report that omits a high/critical finding" rule.
