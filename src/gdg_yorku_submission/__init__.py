@@ -22,6 +22,11 @@ from gdg_yorku_submission.schemas import (
     ReviewFinding,
 )
 
+from gdg_yorku_submission.finding_ids import (
+    compute_anchor,
+    finalize_finding_ids,
+)
+
 __all__ = [
     "Severity",
     "SEVERITY_FLOOR",
@@ -38,4 +43,7 @@ __all__ = [
     "AccountingLedger",
     "ReviewReport",
     "ReviewFinding",
+    "compute_anchor",
+    "finalize_finding_ids",
 ]
+

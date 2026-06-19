@@ -10,7 +10,7 @@ This file tracks the status, dependencies, and references for all implementation
 - [x] **Task 2 — Core Schemas + Severity Mapping**
   - **Description**: Define finding/report schemas, validate severities, map blocker/major/minor → critical/high/medium/low. Floor = `high`.
   - **Dependencies**: Task 1
-- [ ] **Task 3 — Collision-Safe Deterministic Finding IDs**
+- [x] **Task 3 — Collision-Safe Deterministic Finding IDs**
   - **Description**: Implement stable ID generation with occurrence ordinals for co-located findings.
   - **Dependencies**: Task 2
   - **References**: [R8]

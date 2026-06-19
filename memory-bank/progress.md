@@ -2,17 +2,17 @@
 
 ## Project Status
 - **Phase**: Sprint 1: Walking Skeleton & Schema Configuration
-- **Overall Completion**: 7.7% (2 / 26 tasks complete)
+- **Overall Completion**: 11.5% (3 / 26 tasks complete)
 
 ## Completed Tasks
 - [x] Task 1: Fresh Repo Baseline + Provenance Guard
 - [x] Task 2: Core Schemas + Severity Mapping
+- [x] Task 3: Collision-Safe Deterministic Finding IDs
 
 ## In Progress Tasks
 
 
 ## Upcoming Tasks (Sprint 1)
-- [ ] Task 3: Collision-Safe Deterministic Finding IDs
 - [ ] Task 4: FastAPI Walking Skeleton + Orchestrator Seam
 
 ## Gaps, Issues, and Risks

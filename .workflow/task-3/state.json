@@ -1,0 +1,28 @@
+{
+  "run": "task-3",
+  "status": "completed",
+  "current_task": null,
+  "blocked": false,
+  "blockers": [],
+  "last_updated": "2026-06-19",
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Create finding_ids.py and implement anchor hashing, merging, and finalization"
+    },
+    {
+      "id": "TASK-002",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Write unit tests in test_finding_ids.py"
+    },
+    {
+      "id": "TASK-003",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Verify all tests pass with pytest"
+    }
+  ]
+}
