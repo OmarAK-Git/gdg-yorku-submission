@@ -1,0 +1,22 @@
+{
+  "run": "task-8",
+  "status": "completed",
+  "current_task": null,
+  "blocked": false,
+  "blockers": [],
+  "last_updated": "2026-06-19",
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Implement evidence plane prompt builder in src/gdg_yorku_submission/prompts/evidence_plane.py"
+    },
+    {
+      "id": "TASK-002",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Implement unit tests for breakout & formatting in tests/test_evidence_plane.py"
+    }
+  ]
+}

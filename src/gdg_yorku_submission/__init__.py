@@ -48,6 +48,10 @@ from gdg_yorku_submission.preflight import (
     promote_gate_findings,
 )
 
+from gdg_yorku_submission.prompts import (
+    build_evidence_plane_prompt,
+)
+
 __all__ = [
     "Severity",
     "SEVERITY_FLOOR",
@@ -81,5 +85,6 @@ __all__ = [
     "scan_file_for_secrets",
     "run_secret_scan",
     "promote_gate_findings",
+    "build_evidence_plane_prompt",
 ]
 

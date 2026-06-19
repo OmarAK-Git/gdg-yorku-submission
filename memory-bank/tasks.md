@@ -28,11 +28,11 @@ This file tracks the status, dependencies, and references for all implementation
   - **Description**: Wrap files as `CorpusFile` models, categorize by exposure status, and filter with root `.gitignore`.
   - **Dependencies**: Task 5
   - **References**: [R2], [R5]
-- [ ] **Task 7 — Secret Scanner + Redaction Invariant**
+- [x] **Task 7 — Secret Scanner + Redaction Invariant**
   - **Description**: Port Tumbler secret scan, redact secrets from prompt/logs, and implement salted hash fingerprints.
   - **Dependencies**: Tasks 5, 6
   - **References**: [R3]
-- [ ] **Task 8 — Evidence-Plane Prompt Builder (Nonced)**
+- [x] **Task 8 — Evidence-Plane Prompt Builder (Nonced)**
   - **Description**: Delimit untrusted content using per-run random nonced separators.
   - **Dependencies**: Tasks 6, 7
 
