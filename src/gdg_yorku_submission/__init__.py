@@ -20,11 +20,21 @@ from gdg_yorku_submission.schemas import (
     AccountingLedger,
     ReviewReport,
     ReviewFinding,
+    CorpusFile,
+    ExposureStatus,
+    IngestStatus,
 )
 
 from gdg_yorku_submission.finding_ids import (
     compute_anchor,
     finalize_finding_ids,
+)
+
+from gdg_yorku_submission.corpus import (
+    load_root_gitignore,
+    classify_exposure,
+    build_corpus,
+    get_prompt_corpus,
 )
 
 __all__ = [
@@ -43,7 +53,14 @@ __all__ = [
     "AccountingLedger",
     "ReviewReport",
     "ReviewFinding",
+    "CorpusFile",
+    "ExposureStatus",
+    "IngestStatus",
     "compute_anchor",
     "finalize_finding_ids",
+    "load_root_gitignore",
+    "classify_exposure",
+    "build_corpus",
+    "get_prompt_corpus",
 ]
 

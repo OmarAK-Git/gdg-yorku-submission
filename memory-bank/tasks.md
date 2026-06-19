@@ -24,7 +24,7 @@ This file tracks the status, dependencies, and references for all implementation
   - **Description**: Implement zip extraction safety checks (size caps, count caps, directory traversal blocks, entry skipping).
   - **Dependencies**: Task 4
   - **References**: [R1]
-- [ ] **Task 6 — Exposure-Model Prompt Corpus**
+- [x] **Task 6 — Exposure-Model Prompt Corpus**
   - **Description**: Wrap files as `CorpusFile` models, categorize by exposure status, and filter with root `.gitignore`.
   - **Dependencies**: Task 5
   - **References**: [R2], [R5]

@@ -1,0 +1,28 @@
+{
+  "run": "task-6",
+  "status": "completed",
+  "current_task": null,
+  "blocked": false,
+  "blockers": [],
+  "last_updated": "2026-06-19",
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Define CorpusFile schema"
+    },
+    {
+      "id": "TASK-002",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Implement gitignore parsing and exposure status classification"
+    },
+    {
+      "id": "TASK-003",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Add unit tests to verify behavior"
+    }
+  ]
+}

@@ -2,6 +2,9 @@ from pydantic import BaseModel, Field, field_validator, model_validator, ConfigD
 from typing import Literal, Optional, Any, List, Dict
 from gdg_yorku_submission.severity import Severity
 
+ExposureStatus = Literal["prompt_exposed", "ignored_by_root_gitignore", "excluded_by_system"]
+IngestStatus = Literal["success", "security_skip", "read_failure"]
+
 class SkippedEntry(BaseModel):
     model_config = ConfigDict(extra="forbid")
     
@@ -108,7 +111,7 @@ class GateFinding(BaseModel):
     evidence_ref: List[str] = Field(default_factory=list)
     secret_type: str = Field(..., description="Type of secret (e.g. AWS Key, PEM)")
     fingerprint: str = Field(..., description="Salted hash fingerprint of the secret")
-    exposure_status: Literal["prompt_exposed", "ignored_by_root_gitignore", "excluded_by_system"] = Field(
+    exposure_status: ExposureStatus = Field(
         ...,
         description="Exposure category from the ingestion exposure model"
     )
@@ -250,6 +253,36 @@ class ReviewReport(BaseModel):
             if val < 0:
                 raise ValueError(f"Count for {key} cannot be negative")
         return v
+
+
+
+
+class CorpusFile(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    normalized_path: str = Field(..., description="Normalized relative path to the file from the workspace root")
+    original_text: str = Field(..., description="Exact content of the file as ingested")
+    redacted_text: str = Field(..., description="Sanitized/redacted text content, used in prompts")
+    original_line_count: int = Field(..., description="Line count of the original file")
+    redacted_to_original_line_map: Dict[int, int] = Field(
+        default_factory=dict,
+        description="Map from 1-indexed redacted line number to 1-indexed original line number"
+    )
+    evidence_ref: str = Field(..., description="Canonical citation coordinate (e.g. file:normalized_path)")
+    exposure_status: ExposureStatus = Field(
+        "prompt_exposed",
+        description="Exposure status from the ingestion exposure model"
+    )
+    ingest_status: IngestStatus = Field(
+        "success",
+        description="Ingestion/read status of the file"
+    )
+
+    def map_line(self, line_num: int) -> int:
+        """Maps a 1-indexed redacted line number back to its original line number."""
+        if not self.redacted_to_original_line_map:
+            return line_num
+        return self.redacted_to_original_line_map.get(line_num, line_num)
 
 
 # Alias representing pre-coordinator / Specialist Finding written to shared state

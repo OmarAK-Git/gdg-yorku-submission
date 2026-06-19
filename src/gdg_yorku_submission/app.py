@@ -29,7 +29,7 @@ def correctness_specialist_stub() -> List[ReviewFinding]:
             severity=Severity.HIGH,
             location=Location(path="src/app.py", line_start=1, line_end=5),
             claim="Stub correctness finding claim",
-            evidence_ref=["file:///src/app.py#1-5"],
+            evidence_ref=["file:src/app.py#1-5"],
             status="active",
             metadata={"rule_or_category": "correctness_rule"}
         )
@@ -46,7 +46,7 @@ def security_specialist_stub() -> List[ReviewFinding]:
             severity=Severity.CRITICAL,
             location=Location(path="src/main.py", line_start=10, line_end=10),
             claim="Stub security finding claim",
-            evidence_ref=["file:///src/main.py#10"],
+            evidence_ref=["file:src/main.py#10"],
             status="active",
             metadata={"rule_or_category": "security_rule"}
         )
