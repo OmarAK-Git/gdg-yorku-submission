@@ -331,14 +331,16 @@ def test_compile_report_with_contested_findings(orchestrator_cls):
     assert len(report.high_critical_findings) == 1
     assert report.high_critical_findings[0].severity == Severity.HIGH
     
-    # Invariant: accounting ledger contains the contested finding as "omitted"
+    # Invariant: severity counts should match active findings only (contested excluded)
+    assert report.severity_counts == {"critical": 0, "high": 1, "medium": 0, "low": 0, "info": 0}
+    
+    # Invariant: accounting ledger contains the contested finding as "contested", not "omitted"
     active_final_id = report.findings[0].id
     contested_final_id = report.contested_items[0].id
     
     assert report.accounting_ledger.included == [active_final_id]
-    assert len(report.accounting_ledger.omitted) == 1
-    assert report.accounting_ledger.omitted[0].id == contested_final_id
-    assert "Contested:" in report.accounting_ledger.omitted[0].reason
+    assert report.accounting_ledger.omitted == []
+    assert report.accounting_ledger.contested == [contested_final_id]
 
 
 def test_orchestrator_equivalence_differential():

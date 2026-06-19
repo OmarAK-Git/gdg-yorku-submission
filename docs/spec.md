@@ -185,11 +185,12 @@ ReviewReport{
   secret_scan_summary,   // no raw secrets, ever
   accounting_ledger:{ included:[id],
                       merged:[{output_id, input_ids}],
-                      omitted:[{id, reason}] },
+                      omitted:[{id, reason}],
+                      contested:[id] }, // 4th bucket to track contested findings distinctly from omitted ones
   validator_warnings:[]
 }
 ```
-The high/critical header is deterministically rendered so narration can't bury a finding. The terminal report uses this exact schema with `merged=[]`, `omitted=[]`, and every input finding verbatim.
+The high/critical header is deterministically rendered so narration can't bury a finding. The terminal report uses this exact schema with `merged=[]`, `omitted=[]`, `contested=[]`, and every input finding verbatim.
 
 ## Tech Stack
 Backend: Python, FastAPI, Google ADK (behind the `Orchestrator` seam), Pydantic.

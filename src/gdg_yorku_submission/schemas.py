@@ -152,7 +152,7 @@ class AccountingLedger(BaseModel):
     """
     Conservation ledger tracking every finding.
     
-    NOTE: Conservation checks (e.g. that included U merged U omitted covers all inputs)
+    NOTE: Conservation checks (e.g. that included U merged U omitted U contested covers all inputs)
     are logically enforced by the report validator in Task 14, not by this schema itself.
     """
     model_config = ConfigDict(extra="forbid")
@@ -168,6 +168,10 @@ class AccountingLedger(BaseModel):
     omitted: List[OmitLedgerEntry] = Field(
         default_factory=list,
         description="Omitted findings with justifications"
+    )
+    contested: List[str] = Field(
+        default_factory=list,
+        description="IDs of findings marked as contested"
     )
 
 

@@ -9,8 +9,7 @@ from gdg_yorku_submission.schemas import (
     PerspectiveStatus,
     GateStatus,
     AccountingLedger,
-    ReportFinding,
-    OmitLedgerEntry
+    ReportFinding
 )
 from gdg_yorku_submission.finding_ids import finalize_finding_ids
 from gdg_yorku_submission.severity import is_at_or_above_floor
@@ -159,10 +158,6 @@ class Orchestrator(abc.ABC):
         findings = state["findings"]
         report_findings = []
         for f in findings:
-            merged_from = f.metadata.get("merged_from_provisional", [])
-            if not merged_from:
-                merged_from = [f.id]
-                
             rf = ReportFinding(
                 id=f.id,
                 source_agent=f.source_agent,
@@ -174,33 +169,28 @@ class Orchestrator(abc.ABC):
                 status=f.status,
                 metadata=f.metadata,
                 recommended_next_action=None,
-                merged_from=merged_from
+                merged_from=[]  # empty unless coordinator-level merge occurred
             )
             report_findings.append(rf)
-            
-        severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
-        for rf in report_findings:
-            severity_counts[rf.severity.value] = severity_counts.get(rf.severity.value, 0) + 1
             
         # Split active vs contested findings
         active_findings = [rf for rf in report_findings if rf.status != "contested"]
         contested_findings = [rf for rf in report_findings if rf.status == "contested"]
-        
+
+        severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
+        for rf in active_findings:
+            severity_counts[rf.severity.value] = severity_counts.get(rf.severity.value, 0) + 1
+            
         # Build high_critical_findings ONLY from active findings (high_critical is subset of findings)
         high_critical = [rf for rf in active_findings if is_at_or_above_floor(rf.severity)]
         
         # Account for all findings in the ledger.
-        # Contested findings are considered "omitted" from active findings list but visible in contested.
-        omitted_entries = []
-        for rf in contested_findings:
-            omitted_entries.append(
-                OmitLedgerEntry(id=rf.id, reason=f"Contested: {rf.claim}")
-            )
-            
+        # Contested findings are tracked in the dedicated contested list.
         ledger = AccountingLedger(
             included=[rf.id for rf in active_findings],
             merged=[],  # Specialist-level merges are handled at finalization, not coordinator-level.
-            omitted=omitted_entries
+            omitted=[],
+            contested=[rf.id for rf in contested_findings]
         )
         
         statuses = list(state["perspective_statuses"].values())
