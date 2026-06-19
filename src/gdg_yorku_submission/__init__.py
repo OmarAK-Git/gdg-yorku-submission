@@ -37,6 +37,17 @@ from gdg_yorku_submission.corpus import (
     get_prompt_corpus,
 )
 
+from gdg_yorku_submission.preflight import (
+    RedactionContext,
+    GLOBAL_REDACTION_CONTEXT,
+    redact,
+    register_secret,
+    sanitize_value,
+    scan_file_for_secrets,
+    run_secret_scan,
+    promote_gate_findings,
+)
+
 __all__ = [
     "Severity",
     "SEVERITY_FLOOR",
@@ -62,5 +73,13 @@ __all__ = [
     "classify_exposure",
     "build_corpus",
     "get_prompt_corpus",
+    "RedactionContext",
+    "GLOBAL_REDACTION_CONTEXT",
+    "redact",
+    "register_secret",
+    "sanitize_value",
+    "scan_file_for_secrets",
+    "run_secret_scan",
+    "promote_gate_findings",
 ]
 

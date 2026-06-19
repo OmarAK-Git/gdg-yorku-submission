@@ -9,7 +9,8 @@ from gdg_yorku_submission.schemas import (
     PerspectiveStatus,
     GateStatus,
     AccountingLedger,
-    ReportFinding
+    ReportFinding,
+    GateFinding
 )
 from gdg_yorku_submission.finding_ids import finalize_finding_ids
 from gdg_yorku_submission.severity import is_at_or_above_floor
@@ -48,6 +49,26 @@ class Orchestrator(abc.ABC):
         state = self._get_state()
         state["corpus_summary"] = summary
         self._save_state(state)
+
+    def run_secret_gate(self, gate_findings: List[GateFinding]) -> None:
+        """Sets the preflight gate findings and updates gate_status and secret_scan_summary."""
+        state = self._get_state()
+        if state["finalized"]:
+            raise RuntimeError("Cannot write gate findings after ID finalization.")
+            
+        state["secret_scan_summary"] = copy.deepcopy(gate_findings)
+        state["gate_status"] = GateStatus(
+            status="complete",
+            reason=None,
+            finding_ids=[gf.id for gf in gate_findings]
+        )
+        self._save_state(state)
+
+        # Wire gate-to-review promotion into the orchestrator state (BUG-003)
+        from gdg_yorku_submission.preflight.secrets import promote_gate_findings
+        promoted = promote_gate_findings(gate_findings)
+        if promoted:
+            self.write_findings("security", promoted)
 
     def write_findings(self, perspective: Perspective, findings: List[ReviewFinding]) -> None:
         """Appends provisional findings for a given perspective to the run state."""
@@ -102,11 +123,12 @@ class Orchestrator(abc.ABC):
             
             # Read state again since write_findings modified it
             state = self._get_state()
+            all_ids = [f.id for f in state["findings"] if f.perspective == perspective]
             status = PerspectiveStatus(
                 perspective=perspective,
                 status="complete",
                 reason="",
-                finding_ids=[f.id for f in findings]
+                finding_ids=all_ids
             )
             state["perspective_statuses"][perspective] = status
             self._save_state(state)

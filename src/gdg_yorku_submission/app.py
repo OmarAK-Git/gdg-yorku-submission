@@ -90,6 +90,13 @@ async def review_upload(
                 detail=f"Ingestion failed: {str(e)}"
             )
 
+        # Ingestion: build corpus and run pre-flight secret scan
+        from gdg_yorku_submission.corpus import build_corpus
+        from gdg_yorku_submission.preflight.secrets import run_secret_scan
+        
+        corpus = build_corpus(temp_dir_path, manifest)
+        gate_findings = run_secret_scan(corpus)
+
         # 2. Select orchestrator
         if orchestrator == "in_process":
             orch = InProcessOrchestrator()
@@ -99,6 +106,7 @@ async def review_upload(
         # 3. Start run
         orch.start_run()
         orch.set_corpus_summary(corpus_summary)
+        orch.run_secret_gate(gate_findings)
 
         # 4. Run specialists
         orch.run_specialist("correctness", correctness_specialist_stub)
