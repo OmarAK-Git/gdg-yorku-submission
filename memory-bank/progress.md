@@ -1,20 +1,21 @@
 # Progress
 
 ## Project Status
-- **Phase**: Sprint 1: Walking Skeleton & Schema Configuration
-- **Overall Completion**: 15.4% (4 / 26 tasks complete)
+- **Phase**: Sprint 2: Deterministic Trust Boundary
+- **Overall Completion**: 19.2% (5 / 26 tasks complete)
 
 ## Completed Tasks
 - [x] Task 1: Fresh Repo Baseline + Provenance Guard
 - [x] Task 2: Core Schemas + Severity Mapping
 - [x] Task 3: Collision-Safe Deterministic Finding IDs
 - [x] Task 4: FastAPI Walking Skeleton + Orchestrator Seam
+- [x] Task 5: Hardened Zip Extraction
 
 ## In Progress Tasks
 *None*
 
 ## Upcoming Tasks (Sprint 2)
-- [ ] Task 5: Hardened Zip Extraction
+- [ ] Task 6: Exposure-Model Prompt Corpus
 
 ## Gaps, Issues, and Risks
 - **Google ADK integration**: High dependency risk. Mitigated by Orchestrator abstraction seam allowing a plain Python fallback.

@@ -37,10 +37,17 @@ class Orchestrator(abc.ABC):
             "perspective_statuses": {},
             "gate_status": GateStatus(status="complete", reason=None, finding_ids=[]),
             "secret_scan_summary": [],
+            "corpus_summary": {"file_count": 0, "total_bytes": 0},
             "finalized": False,
         }
         self._save_state(state)
         return self.run_id
+
+    def set_corpus_summary(self, summary: Dict[str, Any]) -> None:
+        """Sets the corpus summary for the run."""
+        state = self._get_state()
+        state["corpus_summary"] = summary
+        self._save_state(state)
 
     def write_findings(self, perspective: Perspective, findings: List[ReviewFinding]) -> None:
         """Appends provisional findings for a given perspective to the run state."""
@@ -200,7 +207,7 @@ class Orchestrator(abc.ABC):
                 "run_id": self.run_id,
                 "orchestrator_type": self.__class__.__name__
             },
-            corpus_summary={"file_count": 0, "total_bytes": 0},
+            corpus_summary=state["corpus_summary"],
             perspective_statuses=statuses,
             gate_status=state["gate_status"],
             severity_counts=severity_counts,

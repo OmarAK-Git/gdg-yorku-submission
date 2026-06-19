@@ -68,39 +68,48 @@ async def review_upload(
     runs correctness and security checks using the selected orchestrator,
     and returns a fully-accounted ReviewReport.
     """
-    # 1. Ingestion: verify that the uploaded file is a valid ZIP archive
-    try:
-        content = await file.read()
-        with zipfile.ZipFile(io.BytesIO(content)) as z:
-            # testzip() returns None if no errors are found in the archive
-            bad_file = z.testzip()
-            if bad_file is not None:
-                raise ValueError(f"Corrupt file inside zip: {bad_file}")
-    except Exception as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Ingestion failed: Invalid zip archive. Error: {str(e)}"
-        )
+    import tempfile
+    import zipfile
+    from gdg_yorku_submission.ingestion import HardenedZipExtractor, IngestionError
 
-    # 2. Select orchestrator
-    if orchestrator == "in_process":
-        orch = InProcessOrchestrator()
-    else:
-        orch = AdkOrchestrator()
+    content = await file.read()
 
-    # 3. Start run
-    orch.start_run()
+    with tempfile.TemporaryDirectory() as temp_dir_path:
+        # 1. Ingestion: verify and extract
+        try:
+            manifest = HardenedZipExtractor.extract(content, temp_dir_path)
+            
+            corpus_summary = {
+                "file_count": manifest.total_extracted_count,
+                "total_bytes": manifest.total_extracted_bytes,
+                "skipped_files": len(manifest.skipped_files)
+            }
+        except IngestionError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Ingestion failed: {str(e)}"
+            )
 
-    # 4. Run specialists
-    orch.run_specialist("correctness", correctness_specialist_stub)
-    orch.run_specialist("security", security_specialist_stub)
+        # 2. Select orchestrator
+        if orchestrator == "in_process":
+            orch = InProcessOrchestrator()
+        else:
+            orch = AdkOrchestrator()
 
-    # 5. Compile and return report
-    try:
-        report = orch.compile_report()
-        return report
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to compile report: {str(e)}"
-        )
+        # 3. Start run
+        orch.start_run()
+        orch.set_corpus_summary(corpus_summary)
+
+        # 4. Run specialists
+        orch.run_specialist("correctness", correctness_specialist_stub)
+        orch.run_specialist("security", security_specialist_stub)
+
+        # 5. Compile and return report
+        try:
+            report = orch.compile_report()
+            return report
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to compile report: {str(e)}"
+            )

@@ -10,6 +10,7 @@ def create_tiny_zip() -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
         z.writestr("hello.py", "print('Hello, world!')")
+        z.writestr("/etc/passwd", "root:x:0:0:")  # Skipped due to absolute path
     return buf.getvalue()
 
 
@@ -35,6 +36,9 @@ def test_review_upload_happy_path_adk():
     statuses = {ps["perspective"]: ps for ps in report["perspective_statuses"]}
     assert "correctness" in statuses
     assert statuses["correctness"]["status"] == "complete"
+    assert report["corpus_summary"]["file_count"] == 1
+    assert report["corpus_summary"]["total_bytes"] > 0
+    assert report["corpus_summary"]["skipped_files"] == 1
     assert "security" in statuses
     assert statuses["security"]["status"] == "complete"
 

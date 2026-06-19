@@ -20,7 +20,7 @@ This file tracks the status, dependencies, and references for all implementation
   - **References**: [R8]
 
 ## Sprint 2: Deterministic Trust Boundary
-- [ ] **Task 5 — Hardened Zip Extraction**
+- [x] **Task 5 — Hardened Zip Extraction**
   - **Description**: Implement zip extraction safety checks (size caps, count caps, directory traversal blocks, entry skipping).
   - **Dependencies**: Task 4
   - **References**: [R1]

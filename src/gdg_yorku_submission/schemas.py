@@ -2,6 +2,19 @@ from pydantic import BaseModel, Field, field_validator, model_validator, ConfigD
 from typing import Literal, Optional, Any, List, Dict
 from gdg_yorku_submission.severity import Severity
 
+class SkippedEntry(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    
+    skipped_reason: str = Field(..., description="Reason why the file was skipped")
+
+class IngestionManifest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    
+    extracted_files: List[str] = Field(default_factory=list)
+    skipped_files: Dict[str, SkippedEntry] = Field(default_factory=dict)
+    total_extracted_bytes: int = Field(0)
+    total_extracted_count: int = Field(0)
+
 class Location(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
