@@ -49,6 +49,11 @@ from gdg_yorku_submission.prompts import (
     build_evidence_plane_prompt,
 )
 
+from gdg_yorku_submission.correctness import (
+    SotDiscoveryResult,
+    discover_sot,
+)
+
 __all__ = [
     "Severity",
     "SEVERITY_FLOOR",
@@ -80,5 +85,7 @@ __all__ = [
     "run_secret_scan",
     "promote_gate_findings",
     "build_evidence_plane_prompt",
+    "SotDiscoveryResult",
+    "discover_sot",
 ]
 

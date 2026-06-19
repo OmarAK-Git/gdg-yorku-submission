@@ -45,7 +45,7 @@ This file tracks the status, dependencies, and references for all implementation
 - [x] **Gate Fix 6 — Precise Virtualenv Directory Excludes**
 
 ## Sprint 3: Correctness Agent & Baseline Security
-- [ ] **Task 9 — Source-of-Truth Discovery**
+- [x] **Task 9 — Source-of-Truth Discovery**
   - **Description**: Discover spec files (SPEC.md, DESIGN.md, allowed README headers) and define no-spec fallback.
   - **Dependencies**: Task 8
   - **References**: [R2]
