@@ -119,7 +119,7 @@ Operating rubric: a rewritten correctness-only methodology (strip secret hygiene
 
 Detect corpus language(s) from the manifest. Languages with no ported rules → security status `complete_limited` with reason `no deterministic rules for <lang>` (**never** `complete`); set metadata `unsupported_language_count`. Supported languages documented in README. A non-Python upload **never** presents an empty result as a full security pass.
 
-**Debate upgrade:** Gemini defender ("this ships — API consistency, dependency hygiene, test posture") vs Claude challenger ("not yet — vulns, edge cases, rate-limiting, scope creep"). Reuse Crucible/Crossfire loop, personas, scoring.
+**Debate upgrade:** Gemini defender ("this ships — API consistency, dependency hygiene, test posture") vs Claude challenger ("not yet — vulns, edge cases, rate-limiting, scope creep"). Reuse Crucible/GDG-YorkU Code Review loop, personas, scoring.
 
 **Stop condition (additive, not a replacement):** retain Crucible's tuned delta score; terminate when delta < threshold **AND** no new at-or-above-floor candidate for N rounds, **OR** when max rounds / token budget is reached. This preserves the human's already-tuned asset (reopening it is the most expensive mistake available) while adding review-specific convergence.
 
@@ -230,7 +230,7 @@ Optional: Orbit/GitLab Knowledge Graph API; Crucible SSE streaming for live deba
 ### Demo **[R9]**
 Pinned sample (`samples/driftstore`) ships: `SPEC.md` with a known divergence; a tracked file with a synthetic hardcoded secret; a gitignored `.env` with a synthetic secret; a Python security issue for the baseline/debate. The demo has two segments:
 - **Segment A (live upload):** upload → secret-scan severity split → correctness divergence → security finding → coordinator conservation ledger → final accepted report.
-- **Segment B (out-of-band integrity test):** a separate CLI invocation (`python -m crossfire_review.demo_hooks drop-high ...`) runs the validator against a deliberately corrupted in-memory report and prints the rejection. This hook MUST NOT be reachable over HTTP.
+- **Segment B (out-of-band integrity test):** a separate CLI invocation (`python -m gdg_yorku_submission.demo_hooks drop-high ...`) runs the validator against a deliberately corrupted in-memory report and prints the rejection. This hook MUST NOT be reachable over HTTP.
 
 ### Deliverables
 Public repo, all commits in-window (**author and commit dates** ≥ 2026-06-17); README + `NOTICE.md` provenance table; recorded end-to-end demo; one-page rubric-aligned writeup.
