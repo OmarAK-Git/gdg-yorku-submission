@@ -7,7 +7,7 @@ This file tracks the status, dependencies, and references for all implementation
   - **Description**: Establish git log commit window guard (`scripts/check_commit_window.py` for commits ≥ 2026-06-17) and create `NOTICE.md` provenance table.
   - **Dependencies**: None
   - **References**: [R10]
-- [ ] **Task 2 — Core Schemas + Severity Mapping**
+- [x] **Task 2 — Core Schemas + Severity Mapping**
   - **Description**: Define finding/report schemas, validate severities, map blocker/major/minor → critical/high/medium/low. Floor = `high`.
   - **Dependencies**: Task 1
 - [ ] **Task 3 — Collision-Safe Deterministic Finding IDs**

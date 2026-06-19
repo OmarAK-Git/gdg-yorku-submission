@@ -5,12 +5,10 @@
 - Pytest test suite is initialized and passes.
 
 ## Active Focus
-- Launching Sprint 1 / **Task 2 — Core Schemas + Severity Mapping**:
-  - Define core review findings and report schemas using Pydantic.
-  - Implement severity map from legacy/divergent client labels to standardized enums.
-  - Write validation checks.
+- Launching Sprint 1 / **Task 3 — Collision-Safe Deterministic Finding IDs**:
+  - Implement stable ID generation with occurrence ordinals for co-located findings to ensure ID collision safety.
 
 ## Next Steps
-1. Create `src/gdg_yorku_submission/schemas.py` to house Pydantic models for `Finding`, `ReviewReport`, etc.
-2. Create `src/gdg_yorku_submission/severity.py` with the severity mapping logic (Blocker/Major/Minor -> Standard).
-3. Implement unit tests under `tests/test_schemas.py` and `tests/test_severity.py`.
+1. Create `src/gdg_yorku_submission/finding_ids.py` to house ID generation.
+2. Implement unit tests under `tests/test_finding_ids.py` verifying same anchor properties, tiebreakers, and occurrences.
+3. Ensure `map_severity` is explicitly called at every finding emit point when building future specialist/gate pipelines.
