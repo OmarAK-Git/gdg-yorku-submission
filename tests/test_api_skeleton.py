@@ -94,3 +94,51 @@ def test_review_upload_specialist_failure(monkeypatch):
     # Only security finding should be active/present in report findings
     assert len(report["findings"]) == 1
     assert report["findings"][0]["perspective"] == "security"
+
+
+def test_review_upload_with_secrets():
+    # Zip file with a synthetic API key, a dotenv secret, and a .gitignore
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr(".gitignore", "config/.env\n")
+        z.writestr("src/config.py", "GOOGLE_API_KEY = 'AIzaSyAbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'\nprint('hello')\n")
+        z.writestr("config/.env", "AWS_SECRET = 'abcdefjhjklmnopqrstwxyz0123456789012345A'\n")
+    zip_bytes = buf.getvalue()
+    
+    files = {"file": ("test.zip", zip_bytes, "application/zip")}
+    response = client.post("/review", files=files, params={"orchestrator": "in_process"})
+    assert response.status_code == 200
+    
+    report = response.json()
+    
+    # 1. Assert raw secrets never leak in the response JSON
+    report_str = response.text
+    assert "AIzaSyAbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" not in report_str
+    assert "abcdefjhjklmnopqrstwxyz0123456789012345A" not in report_str
+    
+    # 2. Check that the prompt-exposed secret is promoted to ReviewFinding
+    # report.findings should contain the stub security finding, stub correctness, and promoted secret finding
+    perspectives = [f["perspective"] for f in report["findings"]]
+    assert perspectives.count("security") >= 2 # stub + promoted secret
+    
+    # Check secret scan summary contains both secrets
+    assert len(report["secret_scan_summary"]) == 2
+    secret_types = [gf["secret_type"] for gf in report["secret_scan_summary"]]
+    assert "Google API Key" in secret_types
+    assert "AWS Secret Access Key" in secret_types
+    
+    # Ignored secret in config/.env should have Severity.INFO, and NOT be promoted
+    info_secrets = [gf for gf in report["secret_scan_summary"] if gf["severity"] == "info"]
+    assert len(info_secrets) == 1
+    assert info_secrets[0]["secret_type"] == "AWS Secret Access Key"
+    
+    # The active/promoted finding is for Google API Key
+    # Google API Key is prompt_exposed, so it should be promoted to active findings.
+    active_promoted = [f for f in report["findings"] if f["source_agent"] == "preflight_secret_gate"]
+    assert len(active_promoted) == 1
+    assert active_promoted[0]["severity"] == "high" # Google API Key matches non-critical credential -> high
+    assert active_promoted[0]["metadata"]["secret_type"] == "Google API Key"
+    
+    # Verify accounting ledger has both included active findings + stub correctness (total 3 findings)
+    assert len(report["accounting_ledger"]["included"]) == 3
+

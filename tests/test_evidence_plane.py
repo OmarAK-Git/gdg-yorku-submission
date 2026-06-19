@@ -72,7 +72,8 @@ def test_build_evidence_plane():
             redacted_to_original_line_map={1: 1, 2: 2},
             evidence_ref="file:src/app.py",
             exposure_status="prompt_exposed",
-            ingest_status="success"
+            ingest_status="success",
+            redaction_applied=True
         ),
         "secret.env": CorpusFile(
             normalized_path="secret.env",
@@ -82,7 +83,8 @@ def test_build_evidence_plane():
             redacted_to_original_line_map={1: 1},
             evidence_ref="file:secret.env",
             exposure_status="ignored_by_root_gitignore",
-            ingest_status="success"
+            ingest_status="success",
+            redaction_applied=True
         ),
         "excluded.py": CorpusFile(
             normalized_path="excluded.py",
@@ -92,7 +94,8 @@ def test_build_evidence_plane():
             redacted_to_original_line_map={1: 1},
             evidence_ref="file:excluded.py",
             exposure_status="excluded_by_system",
-            ingest_status="success"
+            ingest_status="success",
+            redaction_applied=True
         ),
         "src/utils.py": CorpusFile(
             normalized_path="src/utils.py",
@@ -102,7 +105,8 @@ def test_build_evidence_plane():
             redacted_to_original_line_map={1: 1, 2: 2},
             evidence_ref="file:src/utils.py",
             exposure_status="prompt_exposed",
-            ingest_status="success"
+            ingest_status="success",
+            redaction_applied=True
         )
     }
     
@@ -153,7 +157,8 @@ def test_build_evidence_plane_prompt():
             redacted_to_original_line_map={1: 1},
             evidence_ref="file:app.py",
             exposure_status="prompt_exposed",
-            ingest_status="success"
+            ingest_status="success",
+            redaction_applied=True
         )
     }
     
@@ -196,7 +201,8 @@ def test_breakout_prevention_in_builder():
             redacted_to_original_line_map={1: 1, 2: 2, 3: 3, 4: 4, 5: 5},
             evidence_ref="file:malicious.py",
             exposure_status="prompt_exposed",
-            ingest_status="success"
+            ingest_status="success",
+            redaction_applied=True
         )
     }
     
@@ -233,7 +239,8 @@ def test_path_sanitization_and_injection():
             redacted_to_original_line_map={1: 1},
             evidence_ref=f"file:{hostile_path}",
             exposure_status="prompt_exposed",
-            ingest_status="success"
+            ingest_status="success",
+            redaction_applied=True
         )
     }
     prompt_text, nonce = build_evidence_plane_prompt(corpus, "Instructions", nonce="fixed_nonce")
@@ -265,7 +272,8 @@ def test_nonce_unguessability_and_negative_breakout():
             redacted_to_original_line_map={1: 1, 2: 2, 3: 3},
             evidence_ref="file:test.py",
             exposure_status="prompt_exposed",
-            ingest_status="success"
+            ingest_status="success",
+            redaction_applied=True
         )
     }
     
@@ -300,7 +308,8 @@ def test_line_count_preservation():
             redacted_to_original_line_map={i: i for i in range(1, len(original_lines) + 1)},
             evidence_ref="file:test.py",
             exposure_status="prompt_exposed",
-            ingest_status="success"
+            ingest_status="success",
+            redaction_applied=True
         )
     }
     prompt_text, nonce = build_evidence_plane_prompt(corpus, "Instructions", nonce="fixed_nonce")
@@ -333,7 +342,8 @@ def test_prompt_determinism_and_reproducibility():
         redacted_to_original_line_map={1: 1},
         evidence_ref="file:a.py",
         exposure_status="prompt_exposed",
-        ingest_status="success"
+        ingest_status="success",
+        redaction_applied=True
     )
     file_b = CorpusFile(
         normalized_path="b.py",
@@ -343,7 +353,8 @@ def test_prompt_determinism_and_reproducibility():
         redacted_to_original_line_map={1: 1},
         evidence_ref="file:b.py",
         exposure_status="prompt_exposed",
-        ingest_status="success"
+        ingest_status="success",
+        redaction_applied=True
     )
     
     corpus1 = {"a.py": file_a, "b.py": file_b}
@@ -354,3 +365,63 @@ def test_prompt_determinism_and_reproducibility():
     
     # Shuffled key insertion order must produce identical output prompts (reproducibility)
     assert prompt1 == prompt2
+
+
+def test_precondition_violation_raises_error():
+    # If redaction_applied is False, build_evidence_plane must raise RuntimeError
+    file_a = CorpusFile(
+        normalized_path="a.py",
+        original_text="a = 1",
+        redacted_text="a = 1",
+        original_line_count=1,
+        redacted_to_original_line_map={1: 1},
+        evidence_ref="file:a.py",
+        exposure_status="prompt_exposed",
+        ingest_status="success",
+        redaction_applied=False # Precondition violated
+    )
+    corpus = {"a.py": file_a}
+    import pytest
+    with pytest.raises(RuntimeError, match="Precondition violated: secret scanning was not applied"):
+        build_evidence_plane(corpus, "nonce")
+
+
+def test_ingest_corpus_scan_evidence_plane_seam_integration():
+    import tempfile
+    import os
+    from gdg_yorku_submission.ingestion import HardenedZipExtractor
+    from gdg_yorku_submission.corpus import build_corpus
+    from gdg_yorku_submission.preflight.secrets import run_secret_scan
+    from gdg_yorku_submission.preflight import RedactionContext
+    from tests.test_ingestion import create_in_memory_zip
+    
+    # Zip containing a file with a secret
+    content = create_in_memory_zip({
+        "src/app.py": b"aws_secret = 'abcdefjhjklmnopqrstwxyz0123456789012345A'\nprint('hello')",
+        "valid.txt": b"ok"
+    })
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manifest = HardenedZipExtractor.extract(content, tmpdir)
+        corpus = build_corpus(tmpdir, manifest)
+        
+        # Ensure that passing it directly before scan raises error
+        import pytest
+        with pytest.raises(RuntimeError, match="Precondition violated: secret scanning was not applied"):
+            build_evidence_plane_prompt(corpus, "Instructions", nonce="test_nonce")
+            
+        # Run scan using a run-specific RedactionContext
+        ctx = RedactionContext()
+        run_secret_scan(corpus, ctx)
+        
+        # Now it should pass without error
+        prompt_text, nonce = build_evidence_plane_prompt(corpus, "Instructions", nonce="test_nonce")
+        
+        # Assert secret was redacted
+        assert "abcdefjhjkl" not in prompt_text
+        assert "[REDACTED_AWS_SECRET_ACCESS_KEY" in prompt_text
+        
+        # Assert boundary and noncing are correct
+        assert '<evidence_plane nonce="test_nonce">' in prompt_text
+        assert '<file nonce="test_nonce" path="src/app.py">' in prompt_text
+

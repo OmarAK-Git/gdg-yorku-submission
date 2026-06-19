@@ -12,7 +12,7 @@ MAX_FILE_COUNT = 10000                        # 10k files
 MAX_PER_FILE_BYTES = 50 * 1024 * 1024         # 50MB
 
 SYSTEM_EXCLUDES = {
-    ".venv", "venv", "env", ".env_test", "node_modules", 
+    ".venv", "venv", ".env_test", "node_modules", 
     "__pycache__", ".git"
 }
 BINARY_EXTENSIONS = {
@@ -20,6 +20,17 @@ BINARY_EXTENSIONS = {
     ".so", ".dylib", ".bin", ".dat", ".png", ".jpg", 
     ".jpeg", ".gif", ".ico", ".pdf"
 }
+
+def is_system_exclude(path_parts: Tuple[str, ...]) -> bool:
+    """Checks if a path parts tuple represents a system-excluded directory."""
+    if any(part in SYSTEM_EXCLUDES for part in path_parts):
+        return True
+    for i, part in enumerate(path_parts):
+        if part == "env":
+            if i + 1 < len(path_parts):
+                if path_parts[i + 1] in {"bin", "Scripts", "lib", "Lib", "include", "pyvenv.cfg"}:
+                    return True
+    return False
 
 class IngestionError(Exception):
     """Exception raised when an ingestion cap is exceeded."""
@@ -81,7 +92,7 @@ class HardenedZipExtractor:
                         
                     # 5. Skip Policy: System Excludes & Binaries
                     path_parts = path_obj.parts
-                    if any(part in SYSTEM_EXCLUDES for part in path_parts):
+                    if is_system_exclude(path_parts):
                         manifest.skipped_files[info.filename] = SkippedEntry(skipped_reason="System exclude directory")
                         continue
                         

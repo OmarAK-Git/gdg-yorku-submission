@@ -3,7 +3,7 @@ import re
 from typing import Dict, List, Set, Tuple
 from gdg_yorku_submission.schemas import Location, GateFinding, CorpusFile, ReviewFinding
 from gdg_yorku_submission.severity import Severity
-from gdg_yorku_submission.preflight.redaction import RedactionContext, GLOBAL_REDACTION_CONTEXT
+from gdg_yorku_submission.preflight.redaction import RedactionContext
 
 # Regex patterns for different secret types
 PEM_PATTERN = re.compile(
@@ -196,14 +196,14 @@ def scan_file_for_secrets(
 
 def run_secret_scan(
     corpus: Dict[str, CorpusFile],
-    context: RedactionContext = None
+    context: RedactionContext
 ) -> List[GateFinding]:
     """
     Scans the entire corpus for secrets, populates the RedactionContext,
     and updates redacted_text of all CorpusFile models.
     """
     if context is None:
-        context = GLOBAL_REDACTION_CONTEXT
+        raise ValueError("A run-specific RedactionContext must be provided to run_secret_scan.")
         
     all_findings: List[GateFinding] = []
     
@@ -222,6 +222,10 @@ def run_secret_scan(
     for path, corpus_file in corpus.items():
         if corpus_file.original_text:
             corpus_file.redacted_text = context.redact(corpus_file.original_text)
+            
+    # Mark redaction as applied to all corpus files
+    for corpus_file in corpus.values():
+        corpus_file.redaction_applied = True
             
     return all_findings
 

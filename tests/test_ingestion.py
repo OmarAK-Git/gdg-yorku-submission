@@ -180,3 +180,27 @@ def test_absolute_path_skip():
         assert "C:/Windows/System32/cmd.exe" in manifest.skipped_files
         assert manifest.skipped_files["C:/Windows/System32/cmd.exe"].skipped_reason == "Absolute path entry"
         assert "valid.txt" in manifest.extracted_files
+
+
+def test_env_directory_selective_exclusion():
+    content = create_in_memory_zip({
+        "src/env/config.py": b"ENV_VAR = 1",
+        "env/pyvenv.cfg": b"version = 3.8",
+        "env/bin/activate": b"echo active",
+        "env/Scripts/activate.bat": b"echo active",
+        "valid.txt": b"ok"
+    })
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manifest = HardenedZipExtractor.extract(content, tmpdir)
+        
+        # 'src/env/config.py' should NOT be skipped
+        assert "src/env/config.py" in manifest.extracted_files
+        assert "src/env/config.py" not in manifest.skipped_files
+        
+        # Virtualenv folders should be skipped
+        assert "env/pyvenv.cfg" in manifest.skipped_files
+        assert "env/bin/activate" in manifest.skipped_files
+        assert "env/Scripts/activate.bat" in manifest.skipped_files
+        
+        assert "valid.txt" in manifest.extracted_files
+

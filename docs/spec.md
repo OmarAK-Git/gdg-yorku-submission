@@ -60,8 +60,8 @@ Input modes: V1 required **`.zip`** upload; V1.1 optional folder/pasted file/dif
 - Max per-file bytes.
 
 **Per-entry skip policy (skip, never abort):** inner/nested archives, symlink entries, absolute-path entries, and path-traversal entries (normalized resolved path escaping the workspace root) are **SKIPPED** — excluded from the workspace but recorded in the manifest with a `skipped_reason`. The run aborts **only** when an aggregate cap is exceeded.
-- System excludes (recorded, not scanned for review): `.venv`/virtualenvs, binary blobs, `*.db`, build artifacts, large generated files.
-- The full-corpus **secret scan still reaches all included files**, including `.env`.
+- System excludes (recorded, excluded from review extraction and pre-flight scanning to preserve performance and prevent scanning noise): `.venv`/virtualenvs, binary blobs, `*.db`, build artifacts, large generated files.
+- The full-corpus **secret scan still reaches all extracted files**, including gitignored configuration files like `.env`.
 
 **Exposure model (deterministic, no Git index) [R2]:** classify every included file as exactly one of:
 - `prompt_exposed` = included by ingestion filters AND not matched by root `.gitignore`.
@@ -70,7 +70,7 @@ Input modes: V1 required **`.zip`** upload; V1.1 optional folder/pasted file/dif
 
 Root `.gitignore` is parsed with `pathspec` GitWildMatch including `!` negation; nested `.gitignore` is V1.1 with documented root-only V1 semantics.
 
-**Important distinction:** secret-scan scope = full extracted corpus (incl. gitignored). LLM prompt scope = `prompt_exposed`, secret-redacted corpus.
+**Important distinction:** secret-scan scope = full extracted corpus (including gitignored configuration files, but excluding system excludes/binaries). LLM prompt scope = `prompt_exposed`, secret-redacted corpus.
 
 **Original-coordinate corpus model [R5]:** every ingested text file is wrapped as `CorpusFile{normalized_path, original_text, redacted_text, original_line_count, redacted_to_original_line_map, evidence_ref}`. Prompts may use `redacted_text` only, but must preserve line count or carry the map so every `location` resolves to the developer's original line numbers.
 

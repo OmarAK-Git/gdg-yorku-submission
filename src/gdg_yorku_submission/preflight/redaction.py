@@ -120,26 +120,13 @@ class RedactionContext:
             new_exc.__context__ = context
             return new_exc
 
-
-GLOBAL_REDACTION_CONTEXT = RedactionContext()
-
-
-def redact(text: str) -> str:
-    """Convenience helper to redact text using the global context."""
-    return GLOBAL_REDACTION_CONTEXT.redact(text)
-
-
-def register_secret(secret: str, secret_type: str = "SECRET") -> str:
-    """Convenience helper to register a secret using the global context."""
-    return GLOBAL_REDACTION_CONTEXT.register_secret(secret, secret_type)
-
-
-def sanitize_value(val: Any, context: RedactionContext = None) -> Any:
+def sanitize_value(val: Any, context: RedactionContext) -> Any:
     """
     Recursively sanitizes values (str, dict, list, exception) to redact secrets.
+    Requires an explicit run-specific RedactionContext.
     """
     if context is None:
-        context = GLOBAL_REDACTION_CONTEXT
+        raise ValueError("A run-specific RedactionContext must be provided to sanitize_value.")
 
     if isinstance(val, str):
         return context.redact(val)
@@ -151,3 +138,4 @@ def sanitize_value(val: Any, context: RedactionContext = None) -> Any:
         return context.redact_exception(val)
     else:
         return val
+

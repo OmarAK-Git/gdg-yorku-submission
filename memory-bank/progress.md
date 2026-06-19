@@ -13,6 +13,7 @@
 - [x] Task 6: Exposure-Model Prompt Corpus
 - [x] Task 7: Secret Scanner + Redaction Invariant
 - [x] Task 8: Evidence-Plane Prompt Builder (Nonced)
+- [x] Sprint 2 Gate Review Fixes (Task 7 context threading, Task 8 pre-conditions, state preservation, precise virtualenv skips, descope documentation, and HTTP E2E tests)
 
 ## In Progress Tasks
 *None*

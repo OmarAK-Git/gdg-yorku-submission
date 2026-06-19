@@ -277,6 +277,10 @@ class CorpusFile(BaseModel):
         "success",
         description="Ingestion/read status of the file"
     )
+    redaction_applied: bool = Field(
+        False,
+        description="True if secret scanning and redaction was applied to this file"
+    )
 
     def map_line(self, line_num: int) -> int:
         """Maps a 1-indexed redacted line number back to its original line number."""

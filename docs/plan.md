@@ -33,7 +33,7 @@
 - **Done when:** E2E API test green with stubs; orchestration behind the seam; append-only state transitions.
 
 ### Task 5 — Hardened Zip Extraction — M — deps: 4 — [R1]
-- **Test first:** zip-only accepted; `../evil.py` entry SKIPPED with `skipped_reason`; symlink/absolute-path entries SKIPPED; nested zip SKIPPED (not recursed); uncompressed-total / file-count / per-file / compressed caps ABORT the run; `.whl`/`.jar` fixtures pass with skipped entries logged; `.venv`/`*.db`/binaries excluded from review manifest but still reachable by the full-corpus scan.
+- **Test first:** zip-only accepted; `../evil.py` entry SKIPPED with `skipped_reason`; symlink/absolute-path entries SKIPPED; nested zip SKIPPED (not recursed); uncompressed-total / file-count / per-file / compressed caps ABORT the run; `.whl`/`.jar` fixtures pass with skipped entries logged; `.venv`/`*.db`/binaries skipped during ingestion and excluded from extraction and pre-flight scanning to preserve performance and prevent scanning noise (while gitignored files like `.env` are fully scanned).
 - **Files:** `src/gdg_yorku_submission/ingest.py`, `tests/test_ingest.py`, `tests/fixtures/`.
 - **Done when:** abort-vs-skip policy proven; manifest records included + skipped entries.
 

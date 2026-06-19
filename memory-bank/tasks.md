@@ -36,6 +36,14 @@ This file tracks the status, dependencies, and references for all implementation
   - **Description**: Delimit untrusted content using per-run random nonced separators.
   - **Dependencies**: Tasks 6, 7
 
+## Sprint 2 Gate Review Fixes
+- [x] **Gate Fix 1 — Threaded Per-Run RedactionContext**
+- [x] **Gate Fix 2 — Redacted Corpus in Orchestrator Shared State**
+- [x] **Gate Fix 3 — Descope System Excludes from Scan (Explicit & Documented)**
+- [x] **Gate Fix 4 — Evidence Plane Seam & Precondition Verification**
+- [x] **Gate Fix 5 — HTTP E2E Secret Scan Review Test**
+- [x] **Gate Fix 6 — Precise Virtualenv Directory Excludes**
+
 ## Sprint 3: Correctness Agent & Baseline Security
 - [ ] **Task 9 — Source-of-Truth Discovery**
   - **Description**: Discover spec files (SPEC.md, DESIGN.md, allowed README headers) and define no-spec fallback.

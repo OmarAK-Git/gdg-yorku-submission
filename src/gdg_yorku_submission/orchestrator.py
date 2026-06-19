@@ -32,6 +32,8 @@ class Orchestrator(abc.ABC):
     def start_run(self) -> str:
         """Starts a new review run, initializes state, and returns a run_id."""
         self.run_id = str(uuid.uuid4())
+        from gdg_yorku_submission.preflight.redaction import RedactionContext
+        redaction_ctx = RedactionContext()
         state = {
             "run_id": self.run_id,
             "findings": [],
@@ -40,9 +42,27 @@ class Orchestrator(abc.ABC):
             "secret_scan_summary": [],
             "corpus_summary": {"file_count": 0, "total_bytes": 0},
             "finalized": False,
+            "redaction_context": redaction_ctx,
+            "corpus": {},
         }
         self._save_state(state)
         return self.run_id
+
+    def get_redaction_context(self) -> Any:
+        """Returns the run-specific RedactionContext."""
+        state = self._get_state()
+        return state.get("redaction_context")
+
+    def set_corpus(self, corpus: Dict[str, Any]) -> None:
+        """Saves the corpus dict in the run state."""
+        state = self._get_state()
+        state["corpus"] = copy.deepcopy(corpus)
+        self._save_state(state)
+
+    def get_corpus(self) -> Dict[str, Any]:
+        """Returns a deep copy of the corpus dict from the run state."""
+        state = self._get_state()
+        return copy.deepcopy(state.get("corpus", {}))
 
     def set_corpus_summary(self, summary: Dict[str, Any]) -> None:
         """Sets the corpus summary for the run."""
@@ -93,8 +113,13 @@ class Orchestrator(abc.ABC):
         self._save_state(state)
 
     def read_state(self) -> Dict[str, Any]:
-        """Returns a isolated deep copy of the current run state."""
-        return copy.deepcopy(self._get_state())
+        """Returns an isolated deep copy of the current run state, keeping redaction_context by reference."""
+        state = self._get_state()
+        redaction_ctx = state.get("redaction_context")
+        state_copy = {k: v for k, v in state.items() if k != "redaction_context"}
+        copied = copy.deepcopy(state_copy)
+        copied["redaction_context"] = redaction_ctx
+        return copied
 
     def run_specialist(
         self,

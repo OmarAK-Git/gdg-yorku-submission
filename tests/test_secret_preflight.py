@@ -7,8 +7,6 @@ from gdg_yorku_submission.orchestrator import InProcessOrchestrator
 from gdg_yorku_submission.corpus import build_corpus
 from gdg_yorku_submission.preflight import (
     RedactionContext,
-    redact,
-    register_secret,
     sanitize_value,
     scan_file_for_secrets,
     run_secret_scan,
@@ -329,14 +327,16 @@ def test_orchestrator_integration_real():
             total_extracted_count=1
         )
         
+        orch = InProcessOrchestrator()
+        orch.start_run()
+        ctx = orch.get_redaction_context()
+
         # Real scanner path
         corpus = build_corpus(tmpdir, manifest)
-        gate_findings = run_secret_scan(corpus)
+        gate_findings = run_secret_scan(corpus, ctx)
         
         assert len(gate_findings) == 2
         
-        orch = InProcessOrchestrator()
-        orch.start_run()
         orch.set_corpus_summary({"file_count": 1, "total_bytes": 100})
         orch.run_secret_gate(gate_findings)
         

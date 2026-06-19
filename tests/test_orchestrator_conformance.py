@@ -380,3 +380,63 @@ def test_orchestrator_equivalence_differential():
         
     assert report_in_proc.accounting_ledger.included == report_adk.accounting_ledger.included
     assert len(report_in_proc.perspective_statuses) == len(report_adk.perspective_statuses)
+
+
+def test_orchestrator_conformance_redaction_context_and_corpus(orchestrator_cls):
+    orch = orchestrator_cls()
+    orch.start_run()
+    
+    # Verify per-run RedactionContext is minted and accessible
+    ctx = orch.get_redaction_context()
+    assert ctx is not None
+    from gdg_yorku_submission.preflight import RedactionContext
+    assert isinstance(ctx, RedactionContext)
+    
+    # Verify set_corpus and get_corpus conformance
+    from gdg_yorku_submission.schemas import CorpusFile
+    dummy_file = CorpusFile(
+        normalized_path="src/main.py",
+        original_text="x = 1",
+        redacted_text="x = 1",
+        original_line_count=1,
+        redacted_to_original_line_map={1: 1},
+        evidence_ref="file:src/main.py",
+        exposure_status="prompt_exposed",
+        ingest_status="success"
+    )
+    corpus = {"src/main.py": dummy_file}
+    
+    orch.set_corpus(corpus)
+    retrieved = orch.get_corpus()
+    
+    assert "src/main.py" in retrieved
+    assert retrieved["src/main.py"].normalized_path == "src/main.py"
+    assert retrieved["src/main.py"].original_text == "x = 1"
+
+
+def test_orchestrator_redaction_context_reference_isolation(orchestrator_cls):
+    orch = orchestrator_cls()
+    orch.start_run()
+    
+    ctx1 = orch.get_redaction_context()
+    ctx2 = orch.get_redaction_context()
+    
+    # Assert get_redaction_context() is the same object
+    assert ctx1 is ctx2
+    
+    # Call read_state()
+    state = orch.read_state()
+    ctx_state = state["redaction_context"]
+    
+    # Assert that read_state returns the live context by reference (not a copy)
+    assert ctx_state is ctx1
+    
+    # Register a secret on the live context
+    secret = "AIzaSyAbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    placeholder = ctx1.register_secret(secret, "Google API Key")
+    
+    # Assert that the new secret is visible on the context retrieved from state
+    assert secret in ctx_state.secrets_to_placeholders
+    assert ctx_state.secrets_to_placeholders[secret] == placeholder
+
+

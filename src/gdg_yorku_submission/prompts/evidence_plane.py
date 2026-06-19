@@ -46,6 +46,14 @@ def build_evidence_plane(corpus: Dict[str, CorpusFile], nonce: str) -> str:
     """
     prompt_corpus = get_prompt_corpus(corpus)
     
+    # Enforce pre-condition: all prompt-exposed corpus files must have been scanned for secrets
+    for path, file_obj in prompt_corpus.items():
+        if not file_obj.redaction_applied:
+            raise RuntimeError(
+                f"Precondition violated: secret scanning was not applied to {path} "
+                f"before building the evidence plane."
+            )
+    
     lines = []
     lines.append(f'<evidence_plane nonce="{nonce}">')
     
