@@ -30,3 +30,6 @@
 - **Claude debate loop complexity**: High token/time risk. Mitigated by deterministic baseline running first and debate acting as a strict cuttable upgrade.
 - **Secret leaks**: Checked system-wide using a single `RedactionContext`.
 - **Commit window constraints**: Mandatory check for author/commit timestamps ≥ 2026-06-17.
+- **Tag for Task 13–14 (Deferred Constraint)**: The correctness agent discards `sot_result.sot_text` and feeds the full file into the evidence plane, bypassing the README heading-allowlist. When the validator's evidence-existence check is built, first define how the SoT span is set — inject `sot_text` as the spec block, or constrain the evidence plane's SoT entry to the allowlisted span — and document the choice.
+- **Tag for Task 16/24 (Deferred Constraint)**: Correctness has only run with the synthetic placeholder finding. Those tasks must produce and assert on a real Gemini-grounded finding's content through a no-monkeypatch path.
+

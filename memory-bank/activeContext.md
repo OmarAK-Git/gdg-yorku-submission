@@ -12,7 +12,12 @@
 ## Active Focus
 - **Task 13 — Coordinator Compiler**: Implement coordinator agent to group/merge findings within the same perspective/source and output a consolidated report.
 
+## Deferred Constraints (from Sprint 3 Gate)
+- **Tag for Task 13–14**: The correctness agent discards `sot_result.sot_text` and feeds the full file into the evidence plane, bypassing the README heading-allowlist. When the validator's evidence-existence check is built, first define how the SoT span is set — inject `sot_text` as the spec block, or constrain the evidence plane's SoT entry to the allowlisted span — and document the choice.
+- **Tag for Task 16/24**: Correctness has only run with the synthetic placeholder finding. Those tasks must produce and assert on a real Gemini-grounded finding's content through a no-monkeypatch path.
+
 ## Next Steps
 1. Design coordinator agent adapter in `src/gdg_yorku_submission/coordinator/`.
 2. Implement unit and integration tests for the coordinator compiler.
 3. Verify via pytest.
+
