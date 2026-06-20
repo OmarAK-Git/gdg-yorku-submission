@@ -1,0 +1,569 @@
+import json
+import logging
+import hashlib
+import secrets
+import re
+from typing import List, Tuple, Dict, Any, Optional, Set
+from pydantic import BaseModel, Field
+from gdg_yorku_submission.schemas import (
+    ReviewFinding,
+    ReportFinding,
+    Location,
+    PerspectiveStatus,
+    GateStatus,
+    AccountingLedger,
+    MergeLedgerEntry,
+    OmitLedgerEntry,
+    ReviewReport,
+    FindingStatus
+)
+from gdg_yorku_submission.severity import Severity, is_at_or_above_floor
+from gdg_yorku_submission.llm.gemini import GeminiClient
+from gdg_yorku_submission.budget import BudgetExhaustedError
+
+logger = logging.getLogger(__name__)
+
+def sanitize_untrusted_input(content: str, nonce: str) -> str:
+    """Sanitizes untrusted coordinator findings input to prevent delimiter breakout."""
+    if nonce:
+        content = content.replace(nonce, "[NONCE_REDACTED]")
+    content = re.sub(r'</?evidence_plane\b', lambda m: m.group(0).replace('<', '&lt;'), content, flags=re.IGNORECASE)
+    return content
+
+
+class CoordinatorMergeGroup(BaseModel):
+    merged_ids: List[str] = Field(
+        ...,
+        description="IDs of input findings to merge. Must be at least 2 findings from the same perspective and source agent."
+    )
+    consolidated_claim: str = Field(
+        ...,
+        description="A clear, consolidated claim description summarizing all the merged findings."
+    )
+    recommended_next_action: str = Field(
+        ...,
+        description="Recommended action for the developer to address the merged findings."
+    )
+
+class CoordinatorOmission(BaseModel):
+    id: str = Field(..., description="Provisional or finalized finding ID to omit.")
+    reason: str = Field(..., description="Justification/reason why this finding is omitted from the report.")
+
+class CoordinatorOutput(BaseModel):
+    merges: List[CoordinatorMergeGroup] = Field(
+        default_factory=list,
+        description="Proposed merges of redundant/overlapping findings."
+    )
+    omissions: List[CoordinatorOmission] = Field(
+        default_factory=list,
+        description="Proposed omissions of low-severity findings. High/critical findings CANNOT be omitted."
+    )
+    recommended_actions: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Recommended next actions for individual (unmerged, included) findings, mapping ID to action text."
+    )
+
+def parse_evidence_ref(ref: str) -> Tuple[str, int, int]:
+    """Parses evidence ref of form file:path#start-end or file:path#line."""
+    if not ref.startswith("file:"):
+        raise ValueError(f"Evidence reference '{ref}' does not start with 'file:'")
+    parts = ref[5:].split("#")
+    path = parts[0]
+    if len(parts) < 2:
+        raise ValueError(f"Evidence reference '{ref}' is missing line coordinates after '#' separator")
+    coord = parts[1]
+    if "-" in coord:
+        line_parts = coord.split("-")
+        return path, int(line_parts[0]), int(line_parts[1])
+    else:
+        line = int(coord)
+        return path, line, line
+
+def validate_report_invariants(
+    report: ReviewReport,
+    input_findings: List[ReviewFinding],
+    corpus: Dict[str, Any]
+) -> List[str]:
+    """
+    Validates report invariants (conformance checks).
+    Returns a list of validation error message strings. If empty, the report is valid.
+    """
+    errors: List[str] = []
+    input_map = {f.id: f for f in input_findings}
+    input_ids = set(input_map.keys())
+
+    # 1. Unknown IDs in report finding list
+    report_findings_map = {rf.id: rf for rf in report.findings}
+    report_contested_map = {rf.id: rf for rf in report.contested_items}
+    all_report_findings_map = {**report_findings_map, **report_contested_map}
+    
+    # 2. Conservation Accounting and Stable IDs
+    accounted_input_ids: Set[str] = set()
+    
+    # Process merges in ledger
+    for merge_entry in report.accounting_ledger.merged:
+        out_id = merge_entry.output_id
+        if out_id not in all_report_findings_map:
+            errors.append(f"Merge output ID '{out_id}' not found in report findings")
+            continue
+            
+        output_finding = all_report_findings_map[out_id]
+        
+        # Verify constituents
+        constituents = merge_entry.input_ids
+        if not constituents:
+            errors.append(f"Merge entry for '{out_id}' is empty")
+            continue
+            
+        for cid in constituents:
+            if cid not in input_ids:
+                errors.append(f"Merge entry for '{out_id}' cites unknown input ID '{cid}'")
+                continue
+            if cid in accounted_input_ids:
+                errors.append(f"Input ID '{cid}' was accounted for multiple times")
+            accounted_input_ids.add(cid)
+            
+        # Check severity exact equality (Spec 25/169 require merged = max of constituents)
+        max_constituent_sev = max(input_map[cid].severity for cid in constituents if cid in input_map)
+        if output_finding.severity != max_constituent_sev:
+            errors.append(
+                f"Merged finding '{out_id}' has severity '{output_finding.severity.value}' "
+                f"which does not exactly equal the max constituent severity '{max_constituent_sev.value}'"
+            )
+            
+        # Check merge perspective/agent isolation
+        first_const = input_map[constituents[0]] if constituents[0] in input_map else None
+        if first_const:
+            expected_p = first_const.perspective
+            expected_a = first_const.source_agent
+            for cid in constituents:
+                if cid in input_map:
+                    c = input_map[cid]
+                    if c.perspective != expected_p or c.source_agent != expected_a:
+                        errors.append(
+                            f"Merged findings must belong to the same perspective and source agent. "
+                            f"Cannot merge '{cid}' ({c.perspective}/{c.source_agent}) with "
+                            f"'{constituents[0]}' ({expected_p}/{expected_a})"
+                        )
+                        break
+
+    # Process omissions in ledger
+    for omit_entry in report.accounting_ledger.omitted:
+        oid = omit_entry.id
+        if oid not in input_ids:
+            errors.append(f"Omission entry cites unknown input ID '{oid}'")
+            continue
+            
+        if oid in accounted_input_ids:
+            errors.append(f"Input ID '{oid}' was accounted for multiple times")
+        accounted_input_ids.add(oid)
+        
+        # High/critical non-omission check
+        input_f = input_map[oid]
+        if is_at_or_above_floor(input_f.severity):
+            errors.append(f"Forbidden omission of high/critical finding '{oid}' (severity: {input_f.severity.value})")
+
+    # Process verbatim included active/contested findings
+    for fid in report.accounting_ledger.included:
+        if fid not in input_ids:
+            # It could be a merged output ID
+            merged_out_ids = {m.output_id for m in report.accounting_ledger.merged}
+            if fid in merged_out_ids:
+                continue
+            errors.append(f"Ledger included list cites unknown ID '{fid}'")
+            continue
+            
+        if fid in accounted_input_ids:
+            errors.append(f"Input ID '{fid}' was accounted for multiple times")
+        accounted_input_ids.add(fid)
+        
+        # Included finding severity must match input severity exactly
+        if fid in input_map:
+            report_f = all_report_findings_map.get(fid)
+            if report_f and report_f.severity != input_map[fid].severity:
+                errors.append(
+                    f"Included finding '{fid}' severity '{report_f.severity.value}' "
+                    f"does not match input finding severity '{input_map[fid].severity.value}'"
+                )
+
+    for fid in report.accounting_ledger.contested:
+        if fid not in input_ids:
+            merged_out_ids = {m.output_id for m in report.accounting_ledger.merged}
+            if fid in merged_out_ids:
+                continue
+            errors.append(f"Ledger contested list cites unknown ID '{fid}'")
+            continue
+            
+        if fid in accounted_input_ids:
+            errors.append(f"Input ID '{fid}' was accounted for multiple times")
+        accounted_input_ids.add(fid)
+        
+        # Contested finding severity must match input severity exactly
+        if fid in input_map:
+            report_f = all_report_findings_map.get(fid)
+            if report_f and report_f.severity != input_map[fid].severity:
+                errors.append(
+                    f"Contested finding '{fid}' severity '{report_f.severity.value}' "
+                    f"does not match input finding severity '{input_map[fid].severity.value}'"
+                )
+
+    # Verify every input ID is accounted for
+    missing_ids = input_ids - accounted_input_ids
+    if missing_ids:
+        errors.append(f"Conservation check failed: input findings {sorted(list(missing_ids))} are not accounted for in ledger")
+
+    # 3. Evidence-coordinate existence validation
+    # Check both active findings, contested findings, and secret_scan_summary gate findings
+    all_findings_to_check: List[Any] = []
+    all_findings_to_check.extend(report.findings)
+    all_findings_to_check.extend(report.contested_items)
+    all_findings_to_check.extend(report.secret_scan_summary)
+
+    for f in all_findings_to_check:
+        # Check location coordinate ranges (R2a)
+        loc = getattr(f, "location", None)
+        if loc:
+            try:
+                ref_path = loc.path
+                ref_start = loc.line_start
+                ref_end = loc.line_end
+                
+                # Check path case-insensitively in corpus
+                corpus_key = None
+                for k in corpus.keys():
+                    if k.lower() == ref_path.replace("\\", "/").lower():
+                        corpus_key = k
+                        break
+                if corpus_key is None:
+                    errors.append(f"Finding '{f.id}' location cites unknown path '{ref_path}'")
+                else:
+                    corpus_file = corpus[corpus_key]
+                    if ref_start < 1 or ref_end > corpus_file.original_line_count or ref_start > ref_end:
+                        errors.append(
+                            f"Finding '{f.id}' location lines {ref_start}-{ref_end} "
+                            f"are out of bounds for '{ref_path}' (original line count: {corpus_file.original_line_count})"
+                        )
+            except Exception as e:
+                errors.append(f"Finding '{f.id}' contains invalid location: {str(e)}")
+
+        # Check evidence_refs
+        evidence_refs = getattr(f, "evidence_ref", [])
+        for ref in evidence_refs:
+            try:
+                ref_path, ref_start, ref_end = parse_evidence_ref(ref)
+                
+                # Check path case-insensitively in corpus
+                corpus_key = None
+                for k in corpus.keys():
+                    if k.lower() == ref_path.replace("\\", "/").lower():
+                        corpus_key = k
+                        break
+                if corpus_key is None:
+                    errors.append(f"Finding '{f.id}' evidence_ref cites unknown path '{ref_path}' in ref '{ref}'")
+                else:
+                    corpus_file = corpus[corpus_key]
+                    if ref_start < 1 or ref_end > corpus_file.original_line_count or ref_start > ref_end:
+                        errors.append(
+                            f"Finding '{f.id}' evidence_ref lines {ref_start}-{ref_end} "
+                            f"are out of bounds for '{ref_path}' (original line count: {corpus_file.original_line_count}) in ref '{ref}'"
+                        )
+            except Exception as e:
+                errors.append(f"Finding '{f.id}' contains malformed evidence_ref '{ref}': {str(e)}")
+
+    return errors
+
+def run_coordinator_compilation(
+    orch,
+    input_findings: List[ReviewFinding],
+    statuses: List[PerspectiveStatus],
+    gate_status: GateStatus,
+    gemini_client: Optional[GeminiClient] = None
+) -> Tuple[List[ReportFinding], List[ReportFinding], AccountingLedger]:
+    """
+    Runs the coordinator agent using Gemini to group and merge findings.
+    If LLM fails, budget runs out, or validation fails after R=2 retries,
+    raises ValueError (which lets compile_report fallback to terminal report).
+    """
+    if gemini_client is None:
+        gemini_client = GeminiClient()
+
+    corpus = orch.get_corpus()
+    input_map = {f.id: f for f in input_findings}
+
+    # Build prompt
+    findings_list = []
+    for f in input_findings:
+        findings_list.append({
+            "id": f.id,
+            "source_agent": f.source_agent,
+            "perspective": f.perspective,
+            "severity": f.severity.value,
+            "location": {
+                "path": f.location.path,
+                "line_start": f.location.line_start,
+                "line_end": f.location.line_end
+            },
+            "claim": f.claim,
+            "evidence_ref": f.evidence_ref,
+            "status": f.status
+        })
+
+    nonce = secrets.token_hex(16)
+    findings_json = json.dumps(findings_list, indent=2)
+    sanitized_findings = sanitize_untrusted_input(findings_json, nonce)
+
+    prompt = (
+        "You are the coordinator agent. Your job is to compile, group, and merge findings from various "
+        "specialist perspectives into a consolidated, clean review report.\n\n"
+        "Here is the nonced evidence plane containing the input findings:\n"
+        f'<evidence_plane nonce="{nonce}">\n'
+        f"{sanitized_findings}\n"
+        f'</evidence_plane nonce="{nonce}">\n\n'
+        "Strict Rules:\n"
+        "1. Merging:\n"
+        "   - You can only merge findings that belong to the SAME perspective AND the SAME source_agent.\n"
+        "   - For any merged group, you must specify all their original IDs in `merged_ids`.\n"
+        "   - You must write a consolidated claim summarizing the merged findings in `consolidated_claim`.\n"
+        "   - You must write a recommended next action for the merged finding in `recommended_next_action`.\n"
+        "2. Omissions:\n"
+        "   - You may omit minor/low-severity findings that are noise or redundant (list their IDs in `omissions` with a brief reason).\n"
+        "   - WARNING: You are STRICTLY FORBIDDEN from omitting any HIGH or CRITICAL severity findings.\n"
+        "3. Individual Findings:\n"
+        "   - For findings that you do not merge or omit, you should provide a recommended next action in `recommended_actions` "
+        "(mapping the finding's ID to a recommended action string).\n\n"
+        "Please return a JSON object conforming strictly to the requested schema."
+    )
+
+    max_retries = 2
+    raw_response = ""
+    parsed_output = None
+    validation_errors = []
+
+    # Bounded retry loop (R=2 attempts total)
+    for attempt in range(max_retries):
+        current_prompt = prompt
+        if validation_errors:
+            error_details = "\n".join(validation_errors)
+            current_prompt += (
+                f"\n\nYOUR PREVIOUS RESPONSE FAILED VALIDATION with the following errors:\n{error_details}\n"
+                "Please fix these errors and regenerate conforming to all rules."
+            )
+
+        try:
+            raw_response = gemini_client.generate_content(
+                orch,
+                prompt=current_prompt,
+                response_schema=CoordinatorOutput,
+                estimated_input_tokens=len(current_prompt) // 4 + 1000,
+                estimated_output_tokens=1000,
+                component="coordinator"
+            )
+
+            cleaned_text = raw_response.strip()
+            if cleaned_text.startswith("```"):
+                lines = cleaned_text.splitlines()
+                if lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines and lines[-1].startswith("```"):
+                    lines = lines[:-1]
+                cleaned_text = "\n".join(lines).strip()
+
+            parsed_json = json.loads(cleaned_text)
+            parsed_output = CoordinatorOutput(**parsed_json)
+
+            # Reconstruct and pre-validate selections locally
+            findings, contested, ledger, errors = reconstruct_report_components(
+                parsed_output, input_findings, corpus
+            )
+            if not errors:
+                return findings, contested, ledger
+                
+            validation_errors = errors
+            logger.warning(f"Coordinator attempt {attempt + 1} validation failed: {validation_errors}")
+        except BudgetExhaustedError as e:
+            logger.error(f"Budget exhausted during coordinator compilation: {e}")
+            raise ValueError("Coordinator compilation failed due to budget exhaustion") from e
+        except Exception as e:
+            logger.warning(f"Error parsing coordinator response on attempt {attempt + 1}: {e}")
+            validation_errors = [f"JSON parsing or structure error: {str(e)}"]
+
+    raise ValueError(f"Coordinator failed to produce a valid report after {max_retries} attempts: {validation_errors}")
+
+def reconstruct_report_components(
+    output: CoordinatorOutput,
+    input_findings: List[ReviewFinding],
+    corpus: Dict[str, Any]
+) -> Tuple[List[ReportFinding], List[ReportFinding], AccountingLedger, List[str]]:
+    """
+    Reconstructs ReportFinding list, contested findings list, and AccountingLedger from LLM suggestion.
+    Performs validation on merges and omissions, returning any validation errors.
+    """
+    errors: List[str] = []
+    input_map = {f.id: f for f in input_findings}
+    processed_ids: Set[str] = set()
+
+    findings: List[ReportFinding] = []
+    contested_items: List[ReportFinding] = []
+
+    ledger_included: List[str] = []
+    ledger_merged: List[MergeLedgerEntry] = []
+    ledger_omitted: List[OmitLedgerEntry] = []
+    ledger_contested: List[str] = []
+
+    # 1. Process merges
+    for m_group in output.merges:
+        # Validate constituent IDs
+        valid_constituents = []
+        for fid in m_group.merged_ids:
+            if fid not in input_map:
+                errors.append(f"Merge group cites unknown finding ID '{fid}'")
+                continue
+            if fid in processed_ids:
+                errors.append(f"Merge group cites already-processed ID '{fid}'")
+                continue
+            valid_constituents.append(fid)
+
+        if len(valid_constituents) < 2:
+            continue
+
+        constituents = [input_map[fid] for fid in valid_constituents]
+        
+        # Verify perspective and source agent isolation
+        expected_p = constituents[0].perspective
+        expected_a = constituents[0].source_agent
+        mismatched = False
+        for c in constituents:
+            if c.perspective != expected_p or c.source_agent != expected_a:
+                errors.append(
+                    f"Cannot merge finding '{c.id}' ({c.perspective}/{c.source_agent}) with "
+                    f"'{constituents[0].id}' ({expected_p}/{expected_a}) - mismatched isolation boundary"
+                )
+                mismatched = True
+                break
+        if mismatched:
+            continue
+
+        # Mark processed
+        for fid in valid_constituents:
+            processed_ids.add(fid)
+
+        # Determine severity (max)
+        merged_severity = max(c.severity for c in constituents)
+        
+        # Determine location
+        first_c = constituents[0]
+        # Same path grouping
+        same_path = all(c.location.path == first_c.location.path for c in constituents)
+        if same_path:
+            line_start = min(c.location.line_start for c in constituents)
+            line_end = max(c.location.line_end for c in constituents)
+            merged_location = Location(path=first_c.location.path, line_start=line_start, line_end=line_end)
+        else:
+            # Fallback: take coordinate of highest severity constituent (or first tiebreaker)
+            primary_c = max(constituents, key=lambda c: (c.severity, c.id))
+            merged_location = primary_c.location
+
+        # Determine evidence_refs (union)
+        evidence_refs: List[str] = []
+        for c in constituents:
+            for ref in c.evidence_ref:
+                if ref not in evidence_refs:
+                    evidence_refs.append(ref)
+
+        # Precedence for status: active > contested > advisory
+        status_ranks = {"active": 3, "contested": 2, "advisory": 1}
+        merged_status = max(constituents, key=lambda c: status_ranks.get(c.status, 0)).status
+
+        # Merge metadata
+        merged_metadata = {}
+        for c in constituents:
+            if c.metadata:
+                merged_metadata.update(c.metadata)
+
+        # Stable merged ID
+        sorted_ids_str = ",".join(sorted(valid_constituents))
+        merged_id = f"merged-{hashlib.sha256(sorted_ids_str.encode('utf-8')).hexdigest()[:16]}"
+
+        rf = ReportFinding(
+            id=merged_id,
+            source_agent=expected_a,
+            perspective=expected_p,
+            severity=merged_severity,
+            location=merged_location,
+            claim=m_group.consolidated_claim,
+            evidence_ref=evidence_refs,
+            status=merged_status,
+            metadata=merged_metadata,
+            recommended_next_action=m_group.recommended_next_action,
+            merged_from=valid_constituents
+        )
+
+        if merged_status == "contested":
+            contested_items.append(rf)
+            ledger_contested.append(merged_id)
+        else:
+            findings.append(rf)
+            ledger_included.append(merged_id)
+
+        ledger_merged.append(MergeLedgerEntry(output_id=merged_id, input_ids=valid_constituents))
+
+    # 2. Process omissions
+    for o in output.omissions:
+        fid = o.id
+        if fid not in input_map:
+            errors.append(f"Omission cites unknown finding ID '{fid}'")
+            continue
+        if fid in processed_ids:
+            errors.append(f"Omission cites already-processed ID '{fid}'")
+            continue
+
+        # Check high/critical non-omission
+        input_f = input_map[fid]
+        if is_at_or_above_floor(input_f.severity):
+            errors.append(f"Cannot omit high/critical severity finding '{fid}'")
+            continue
+
+        processed_ids.add(fid)
+        ledger_omitted.append(OmitLedgerEntry(id=fid, reason=o.reason))
+
+    # 3. Process remaining unmerged findings
+    for f in input_findings:
+        if f.id in processed_ids:
+            continue
+
+        processed_ids.add(f.id)
+        
+        # Get recommended action
+        rec_action = output.recommended_actions.get(f.id)
+        if not rec_action:
+            rec_action = f"Verify finding in {f.location.path} lines {f.location.line_start}-{f.location.line_end}."
+
+        rf = ReportFinding(
+            id=f.id,
+            source_agent=f.source_agent,
+            perspective=f.perspective,
+            severity=f.severity,
+            location=f.location,
+            claim=f.claim,
+            evidence_ref=f.evidence_ref,
+            status=f.status,
+            metadata=f.metadata,
+            recommended_next_action=rec_action,
+            merged_from=[]
+        )
+
+        if f.status == "contested":
+            contested_items.append(rf)
+            ledger_contested.append(f.id)
+        else:
+            findings.append(rf)
+            ledger_included.append(f.id)
+
+    ledger = AccountingLedger(
+        included=ledger_included,
+        merged=ledger_merged,
+        omitted=ledger_omitted,
+        contested=ledger_contested
+    )
+
+    return findings, contested_items, ledger, errors

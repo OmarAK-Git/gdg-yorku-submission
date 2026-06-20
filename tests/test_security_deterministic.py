@@ -21,6 +21,9 @@ def make_dummy_corpus_file(path: str, text: str, line_map=None) -> CorpusFile:
     line_count = len(lines)
     if line_map is None:
         line_map = {i: i for i in range(1, line_count + 1)}
+    else:
+        max_line = max(line_map.values())
+        line_count = max(line_count, max_line)
     return CorpusFile(
         normalized_path=path,
         original_text=text,

@@ -1,7 +1,10 @@
 import uuid
 import abc
 import copy
-from typing import List, Dict, Any, Callable, Union, Tuple
+import logging
+from typing import List, Dict, Any, Callable, Union, Tuple, Optional
+
+logger = logging.getLogger(__name__)
 from gdg_yorku_submission.schemas import (
     ReviewFinding,
     Perspective,
@@ -225,16 +228,57 @@ class Orchestrator(abc.ABC):
             )
         self._save_state(state)
 
-    def compile_report(self) -> ReviewReport:
-        """Compiles the finalized findings and state into a canonical ReviewReport."""
+    def compile_terminal_report(self) -> ReviewReport:
+        """
+        Compiles the terminal report (fallback).
+        Every input finding is Included verbatim, ordered by severity then path.
+        No merges, empty omissions, empty contested (unless input is contested).
+        Zero LLM budget required.
+        """
         state = self._get_state()
         if not state["finalized"]:
             self.finalize_ids()
             state = self._get_state()
             
         findings = state["findings"]
+        corpus = self.get_corpus()
+        
+        from gdg_yorku_submission.coordinator import parse_evidence_ref, validate_report_invariants
+        
         report_findings = []
+        terminal_warnings = ["Coordinator compilation failed or was bypassed. Active terminal fallback report."]
+        
         for f in findings:
+            valid_refs = []
+            stripped_refs = []
+            for ref in f.evidence_ref:
+                is_valid = True
+                try:
+                    ref_path, ref_start, ref_end = parse_evidence_ref(ref)
+                    corpus_key = None
+                    for k in corpus.keys():
+                        if k.lower() == ref_path.replace("\\", "/").lower():
+                            corpus_key = k
+                            break
+                    if corpus_key is None:
+                        is_valid = False
+                    else:
+                        corpus_file = corpus[corpus_key]
+                        if ref_start < 1 or ref_end > corpus_file.original_line_count or ref_start > ref_end:
+                            is_valid = False
+                except Exception:
+                    is_valid = False
+                
+                if is_valid:
+                    valid_refs.append(ref)
+                else:
+                    stripped_refs.append(ref)
+            
+            if stripped_refs:
+                terminal_warnings.append(
+                    f"Finding {f.id} evidence_ref stripped: {', '.join(stripped_refs)}"
+                )
+                
             rf = ReportFinding(
                 id=f.id,
                 source_agent=f.source_agent,
@@ -242,41 +286,78 @@ class Orchestrator(abc.ABC):
                 severity=f.severity,
                 location=f.location,
                 claim=f.claim,
-                evidence_ref=f.evidence_ref,
+                evidence_ref=valid_refs,
                 status=f.status,
                 metadata=f.metadata,
-                recommended_next_action=None,
-                merged_from=[]  # empty unless coordinator-level merge occurred
+                recommended_next_action=f"Verify finding in {f.location.path} lines {f.location.line_start}-{f.location.line_end}.",
+                merged_from=[]
             )
             report_findings.append(rf)
             
+        # Sanitize secret_scan_summary gate findings evidence_refs (R1a)
+        sanitized_gate_findings = []
+        for gf in state.get("secret_scan_summary", []):
+            valid_refs = []
+            stripped_refs = []
+            for ref in gf.evidence_ref:
+                is_valid = True
+                try:
+                    ref_path, ref_start, ref_end = parse_evidence_ref(ref)
+                    corpus_key = None
+                    for k in corpus.keys():
+                        if k.lower() == ref_path.replace("\\", "/").lower():
+                            corpus_key = k
+                            break
+                    if corpus_key is None:
+                        is_valid = False
+                    else:
+                        corpus_file = corpus[corpus_key]
+                        if ref_start < 1 or ref_end > corpus_file.original_line_count or ref_start > ref_end:
+                            is_valid = False
+                except Exception:
+                    is_valid = False
+                
+                if is_valid:
+                    valid_refs.append(ref)
+                else:
+                    stripped_refs.append(ref)
+            
+            if stripped_refs:
+                terminal_warnings.append(
+                    f"Gate Finding {gf.id} evidence_ref stripped: {', '.join(stripped_refs)}"
+                )
+            
+            gf_copy = gf.model_copy(update={"evidence_ref": valid_refs})
+            sanitized_gate_findings.append(gf_copy)
+
+        # Order report findings by severity (descending rank) then path
+        report_findings.sort(key=lambda x: (-x.severity.rank, x.location.path, x.location.line_start))
+        
         # Split active vs contested findings
         active_findings = [rf for rf in report_findings if rf.status != "contested"]
         contested_findings = [rf for rf in report_findings if rf.status == "contested"]
-
+    
         severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
         for rf in active_findings:
             severity_counts[rf.severity.value] = severity_counts.get(rf.severity.value, 0) + 1
             
-        # Build high_critical_findings ONLY from active findings (high_critical is subset of findings)
         high_critical = [rf for rf in active_findings if is_at_or_above_floor(rf.severity)]
         
-        # Account for all findings in the ledger.
-        # Contested findings are tracked in the dedicated contested list.
         ledger = AccountingLedger(
             included=[rf.id for rf in active_findings],
-            merged=[],  # Specialist-level merges are handled at finalization, not coordinator-level.
+            merged=[],
             omitted=[],
             contested=[rf.id for rf in contested_findings]
         )
         
         statuses = list(state["perspective_statuses"].values())
         
-        return ReviewReport(
+        report = ReviewReport(
             run_metadata={
                 **state.get("run_metadata", {}),
                 "run_id": self.run_id,
-                "orchestrator_type": self.__class__.__name__
+                "orchestrator_type": self.__class__.__name__,
+                "compilation_mode": "terminal_fallback"
             },
             corpus_summary=state["corpus_summary"],
             perspective_statuses=statuses,
@@ -285,10 +366,86 @@ class Orchestrator(abc.ABC):
             high_critical_findings=high_critical,
             findings=active_findings,
             contested_items=contested_findings,
-            secret_scan_summary=state["secret_scan_summary"],
+            secret_scan_summary=sanitized_gate_findings,
             accounting_ledger=ledger,
-            validator_warnings=[]
+            validator_warnings=terminal_warnings
         )
+        
+        errors = validate_report_invariants(report, findings, corpus)
+        if errors:
+            logger.warning(f"Terminal fallback report validation warnings: {errors}")
+            report.validator_warnings.extend(errors)
+            
+        return report
+
+    def compile_report(self, gemini_client: Optional[Any] = None) -> ReviewReport:
+        """
+        Compiles the finalized findings and state into a canonical ReviewReport.
+        Attempts coordinator compilation first, falling back to a deterministic terminal report.
+        """
+        state = self._get_state()
+        if not state["finalized"]:
+            self.finalize_ids()
+            state = self._get_state()
+            
+        findings = state["findings"]
+        statuses = list(state["perspective_statuses"].values())
+        gate_status = state["gate_status"]
+        
+        from gdg_yorku_submission.coordinator import run_coordinator_compilation, validate_report_invariants
+        
+        corpus = self.get_corpus()
+        
+        try:
+            # Run coordinator compilation
+            compiled_findings, contested_items, ledger = run_coordinator_compilation(
+                self,
+                findings,
+                statuses,
+                gate_status,
+                gemini_client=gemini_client
+            )
+            
+            # Build the report
+            # Split active vs contested findings
+            active_findings = [rf for rf in compiled_findings if rf.status != "contested"]
+            
+            severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
+            for rf in active_findings:
+                severity_counts[rf.severity.value] = severity_counts.get(rf.severity.value, 0) + 1
+                
+            high_critical = [rf for rf in active_findings if is_at_or_above_floor(rf.severity)]
+            
+            report = ReviewReport(
+                run_metadata={
+                    **state.get("run_metadata", {}),
+                    "run_id": self.run_id,
+                    "orchestrator_type": self.__class__.__name__,
+                    "compilation_mode": "coordinated"
+                },
+                corpus_summary=state["corpus_summary"],
+                perspective_statuses=statuses,
+                gate_status=state["gate_status"],
+                severity_counts=severity_counts,
+                high_critical_findings=high_critical,
+                findings=active_findings,
+                contested_items=contested_items,
+                secret_scan_summary=state["secret_scan_summary"],
+                accounting_ledger=ledger,
+                validator_warnings=[]
+            )
+            
+            # Validate invariants
+            errors = validate_report_invariants(report, findings, corpus)
+            if errors:
+                raise ValueError(f"Report validation failed: {errors}")
+                
+            return report
+            
+        except Exception as e:
+            logger.warning(f"Coordinator compilation failed or rejected, falling back to terminal report. Error: {e}")
+            return self.compile_terminal_report()
+
 
 
 class InProcessOrchestrator(Orchestrator):

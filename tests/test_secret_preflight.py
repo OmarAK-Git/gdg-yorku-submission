@@ -287,9 +287,23 @@ def test_synthetic_secrets_leak_assertion():
     serialized_gf = gf.model_dump_json()
     assert secret not in serialized_gf
     
+    corpus = {
+        "keys.py": CorpusFile(
+            normalized_path="keys.py",
+            original_text=f"api_key = '{secret}'",
+            redacted_text=f"api_key = '{secret}'",
+            original_line_count=1,
+            redacted_to_original_line_map={1: 1},
+            evidence_ref="file:keys.py",
+            exposure_status="prompt_exposed",
+            ingest_status="success"
+        )
+    }
+    
     # Check InProcessOrchestrator compilation output
     orch = InProcessOrchestrator()
     orch.start_run()
+    orch.set_corpus(corpus)
     orch.set_corpus_summary({"file_count": 1, "total_bytes": 10})
     orch.run_secret_gate(findings)
     
@@ -337,6 +351,7 @@ def test_orchestrator_integration_real():
         
         assert len(gate_findings) == 2
         
+        orch.set_corpus(corpus)
         orch.set_corpus_summary({"file_count": 1, "total_bytes": 100})
         orch.run_secret_gate(gate_findings)
         
