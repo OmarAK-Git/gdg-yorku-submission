@@ -2,7 +2,7 @@
 
 ## Project Status
 - **Phase**: Sprint 3: Correctness Agent & Baseline Security
-- **Overall Completion**: 42.3% (11 / 26 tasks complete)
+- **Overall Completion**: 46.2% (12 / 26 tasks complete)
 
 ## Completed Tasks
 - [x] Task 1: Fresh Repo Baseline + Provenance Guard
@@ -16,13 +16,14 @@
 - [x] Task 9: Source-of-Truth Discovery
 - [x] Task 10: Rewrite Correctness Rubric/Methodology
 - [x] Task 11: Deterministic Security Baseline Pass (Python AST)
+- [x] Task 12: Correctness Agent Adapter
 - [x] Sprint 2 Gate Review Fixes (Task 7 context threading, Task 8 pre-conditions, state preservation, precise virtualenv skips, descope documentation, and HTTP E2E tests)
 
 ## In Progress Tasks
 *None*
 
-## Upcoming Tasks (Sprint 3)
-- [ ] Task 12: Correctness Agent Adapter
+## Upcoming Tasks (Sprint 4)
+- [ ] Task 13: Coordinator Compiler
 
 ## Gaps, Issues, and Risks
 - **Google ADK integration**: High dependency risk. Mitigated by Orchestrator abstraction seam allowing a plain Python fallback.

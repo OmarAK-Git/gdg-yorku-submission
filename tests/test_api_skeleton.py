@@ -1,4 +1,5 @@
 import io
+import json
 import zipfile
 from fastapi.testclient import TestClient
 from gdg_yorku_submission.app import app
@@ -9,6 +10,8 @@ client = TestClient(app)
 def create_tiny_zip() -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("SPEC.md", "This is SPEC content.\nRequirement 1 is documented here.\nLine 3 of spec.\nLine 4.\nLine 5.\nLine 6.\nLine 7.\nLine 8.\nLine 9.\nLine 10.\nLine 11.\nLine 12.\nLine 13.\nLine 14.\nLine 15.")
+        z.writestr("src/app.py", "def my_func():\n    pass\n# another line\n# line 4\n# line 5\n# line 6\n# line 7\n# line 8\n# line 9\n# line 10\n# line 11\n# line 12\n")
         z.writestr("hello.py", "print('Hello, world!')")
         z.writestr("/etc/passwd", "root:x:0:0:")  # Skipped due to absolute path
     return buf.getvalue()
@@ -20,7 +23,27 @@ def test_root_endpoint():
     assert response.json()["status"] == "running"
 
 
-def test_review_upload_happy_path_adk():
+def test_review_upload_happy_path_adk(monkeypatch):
+    fake_finding = [
+        {
+            "id": "prov-correctness-adk-1",
+            "source_agent": "correctness_agent",
+            "perspective": "correctness",
+            "severity": "high",
+            "location": {
+                "path": "src/app.py",
+                "line_start": 1,
+                "line_end": 2
+            },
+            "claim": "Explicit injected correctness finding for ADK.",
+            "evidence_ref": ["file:SPEC.md#1-2"]
+        }
+    ]
+    monkeypatch.setattr(
+        "gdg_yorku_submission.llm.gemini.GeminiClient.generate_content",
+        lambda *args, **kwargs: json.dumps(fake_finding)
+    )
+
     zip_bytes = create_tiny_zip()
     files = {"file": ("test.zip", zip_bytes, "application/zip")}
     
@@ -36,7 +59,7 @@ def test_review_upload_happy_path_adk():
     statuses = {ps["perspective"]: ps for ps in report["perspective_statuses"]}
     assert "correctness" in statuses
     assert statuses["correctness"]["status"] == "complete"
-    assert report["corpus_summary"]["file_count"] == 1
+    assert report["corpus_summary"]["file_count"] == 3
     assert report["corpus_summary"]["total_bytes"] > 0
     assert report["corpus_summary"]["skipped_files"] == 1
     assert "security" in statuses
@@ -47,7 +70,27 @@ def test_review_upload_happy_path_adk():
         assert len(f["id"]) == 64  # SHA-256 hex string
 
 
-def test_review_upload_happy_path_in_process():
+def test_review_upload_happy_path_in_process(monkeypatch):
+    fake_finding = [
+        {
+            "id": "prov-correctness-in-process-1",
+            "source_agent": "correctness_agent",
+            "perspective": "correctness",
+            "severity": "high",
+            "location": {
+                "path": "src/app.py",
+                "line_start": 1,
+                "line_end": 2
+            },
+            "claim": "Explicit injected correctness finding for InProcess.",
+            "evidence_ref": ["file:SPEC.md#1-2"]
+        }
+    ]
+    monkeypatch.setattr(
+        "gdg_yorku_submission.llm.gemini.GeminiClient.generate_content",
+        lambda *args, **kwargs: json.dumps(fake_finding)
+    )
+
     zip_bytes = create_tiny_zip()
     files = {"file": ("test.zip", zip_bytes, "application/zip")}
     
@@ -69,9 +112,9 @@ def test_review_upload_invalid_zip():
 
 
 def test_review_upload_specialist_failure(monkeypatch):
-    def failing_stub():
+    def failing_stub(*args, **kwargs):
         raise RuntimeError("Correctness agent failed.")
-    monkeypatch.setattr("gdg_yorku_submission.app.correctness_specialist_stub", failing_stub)
+    monkeypatch.setattr("gdg_yorku_submission.correctness.agent.make_correctness_specialist", lambda orch: failing_stub)
 
     zip_bytes = create_tiny_zip()
     files = {"file": ("test.zip", zip_bytes, "application/zip")}
@@ -99,6 +142,8 @@ def test_review_upload_with_secrets():
     # Zip file with a synthetic API key, a dotenv secret, and a .gitignore
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("SPEC.md", "This is SPEC content.\nRequirement 1 is documented here.\nLine 3 of spec.\nLine 4.\nLine 5.\nLine 6.\nLine 7.\nLine 8.\nLine 9.\nLine 10.\nLine 11.\nLine 12.\nLine 13.\nLine 14.\nLine 15.")
+        z.writestr("src/app.py", "def my_func():\n    pass\n# another line\n# line 4\n# line 5\n# line 6\n# line 7\n# line 8\n# line 9\n# line 10\n# line 11\n# line 12\n")
         z.writestr(".gitignore", "config/.env\n")
         z.writestr("src/config.py", "GOOGLE_API_KEY = 'AIzaSyAbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'\nprint('hello')\n")
         z.writestr("config/.env", "AWS_SECRET = 'abcdefjhjklmnopqrstwxyz0123456789012345A'\n")

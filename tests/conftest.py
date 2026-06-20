@@ -1,3 +1,6 @@
+import os
+os.environ["USE_FAKE_LLM"] = "true"
+
 import sys
 from pathlib import Path
 

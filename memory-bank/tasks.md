@@ -56,7 +56,7 @@ This file tracks the status, dependencies, and references for all implementation
   - **Description**: Implement deterministic Python AST checkers (SQLi, shell=True, unsafe deserialize, missing auth, path traversal, verify=False).
   - **Dependencies**: Tasks 5, 6, 7, 8
   - **References**: [R6]
-- [ ] **Task 12 — Correctness Agent Adapter**
+- [x] **Task 12 — Correctness Agent Adapter**
   - **Description**: Adapter for Vertex AI Gemini correctly grounded via evidence-refs and budget-aware.
   - **Dependencies**: Tasks 8, 9, 10
   - **References**: [R5], [R7]

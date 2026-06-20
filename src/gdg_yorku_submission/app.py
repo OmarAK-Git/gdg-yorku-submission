@@ -19,38 +19,6 @@ app = FastAPI(
 )
 
 
-def correctness_specialist_stub() -> List[ReviewFinding]:
-    """Stub correctness specialist returning a standard finding."""
-    return [
-        ReviewFinding(
-            id="stub-correctness-finding",
-            source_agent="correctness_agent",
-            perspective="correctness",
-            severity=Severity.HIGH,
-            location=Location(path="src/app.py", line_start=1, line_end=5),
-            claim="Stub correctness finding claim",
-            evidence_ref=["file:src/app.py#1-5"],
-            status="active",
-            metadata={"rule_or_category": "correctness_rule"}
-        )
-    ]
-
-
-def security_specialist_stub() -> List[ReviewFinding]:
-    """Stub security specialist returning a standard finding."""
-    return [
-        ReviewFinding(
-            id="stub-security-finding",
-            source_agent="security_deterministic",
-            perspective="security",
-            severity=Severity.CRITICAL,
-            location=Location(path="src/main.py", line_start=10, line_end=10),
-            claim="Stub security finding claim",
-            evidence_ref=["file:src/main.py#10"],
-            status="active",
-            metadata={"rule_or_category": "security_rule"}
-        )
-    ]
 
 
 @app.get("/")
@@ -113,7 +81,8 @@ async def review_upload(
 
         # 4. Run specialists
         from gdg_yorku_submission.security import make_security_specialist
-        orch.run_specialist("correctness", correctness_specialist_stub)
+        from gdg_yorku_submission.correctness.agent import make_correctness_specialist
+        orch.run_specialist("correctness", make_correctness_specialist(orch))
         orch.run_specialist("security", make_security_specialist(orch))
 
         # 5. Compile and return report

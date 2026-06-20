@@ -33,6 +33,7 @@ class Orchestrator(abc.ABC):
         """Starts a new review run, initializes state, and returns a run_id."""
         self.run_id = str(uuid.uuid4())
         from gdg_yorku_submission.preflight.redaction import RedactionContext
+        from gdg_yorku_submission.budget import RunBudget
         redaction_ctx = RedactionContext()
         state = {
             "run_id": self.run_id,
@@ -44,6 +45,7 @@ class Orchestrator(abc.ABC):
             "finalized": False,
             "redaction_context": redaction_ctx,
             "corpus": {},
+            "budget": RunBudget().model_dump(),
         }
         self._save_state(state)
         return self.run_id
