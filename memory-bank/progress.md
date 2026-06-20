@@ -2,7 +2,7 @@
 
 ## Project Status
 - **Phase**: Sprint 3: Correctness Agent & Baseline Security
-- **Overall Completion**: 34.6% (9 / 26 tasks complete)
+- **Overall Completion**: 38.4% (10 / 26 tasks complete)
 
 ## Completed Tasks
 - [x] Task 1: Fresh Repo Baseline + Provenance Guard
@@ -14,13 +14,13 @@
 - [x] Task 7: Secret Scanner + Redaction Invariant
 - [x] Task 8: Evidence-Plane Prompt Builder (Nonced)
 - [x] Task 9: Source-of-Truth Discovery
+- [x] Task 10: Rewrite Correctness Rubric/Methodology
 - [x] Sprint 2 Gate Review Fixes (Task 7 context threading, Task 8 pre-conditions, state preservation, precise virtualenv skips, descope documentation, and HTTP E2E tests)
 
 ## In Progress Tasks
 *None*
 
 ## Upcoming Tasks (Sprint 3)
-- [ ] Task 10: Rewrite Correctness Rubric/Methodology
 - [ ] Task 11: Deterministic Security Baseline Pass (Python AST)
 - [ ] Task 12: Correctness Agent Adapter
 

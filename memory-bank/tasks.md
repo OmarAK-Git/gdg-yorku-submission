@@ -49,7 +49,7 @@ This file tracks the status, dependencies, and references for all implementation
   - **Description**: Discover spec files (SPEC.md, DESIGN.md, allowed README headers) and define no-spec fallback.
   - **Dependencies**: Task 8
   - **References**: [R2]
-- [ ] **Task 10 — Rewrite Correctness Rubric/Methodology**
+- [x] **Task 10 — Rewrite Correctness Rubric/Methodology**
   - **Description**: Author correctness-only review criteria, capping no-spec findings at `medium`.
   - **Dependencies**: Task 9
 - [ ] **Task 11 — Deterministic Security Baseline Pass (Python AST)**
