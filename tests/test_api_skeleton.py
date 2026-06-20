@@ -30,7 +30,7 @@ def test_review_upload_happy_path_adk():
     report = response.json()
     assert "run_metadata" in report
     assert report["run_metadata"]["orchestrator_type"] == "AdkOrchestrator"
-    assert len(report["findings"]) == 2
+    assert len(report["findings"]) == 1
     
     # Check correctness perspective
     statuses = {ps["perspective"]: ps for ps in report["perspective_statuses"]}
@@ -56,7 +56,7 @@ def test_review_upload_happy_path_in_process():
     
     report = response.json()
     assert report["run_metadata"]["orchestrator_type"] == "InProcessOrchestrator"
-    assert len(report["findings"]) == 2
+    assert len(report["findings"]) == 1
 
 
 def test_review_upload_invalid_zip():
@@ -92,8 +92,7 @@ def test_review_upload_specialist_failure(monkeypatch):
     assert statuses["security"]["status"] == "complete"
     
     # Only security finding should be active/present in report findings
-    assert len(report["findings"]) == 1
-    assert report["findings"][0]["perspective"] == "security"
+    assert len(report["findings"]) == 0
 
 
 def test_review_upload_with_secrets():
@@ -119,7 +118,7 @@ def test_review_upload_with_secrets():
     # 2. Check that the prompt-exposed secret is promoted to ReviewFinding
     # report.findings should contain the stub security finding, stub correctness, and promoted secret finding
     perspectives = [f["perspective"] for f in report["findings"]]
-    assert perspectives.count("security") >= 2 # stub + promoted secret
+    assert perspectives.count("security") == 1 # promoted secret only
     
     # Check secret scan summary contains both secrets
     assert len(report["secret_scan_summary"]) == 2
@@ -139,6 +138,6 @@ def test_review_upload_with_secrets():
     assert active_promoted[0]["severity"] == "high" # Google API Key matches non-critical credential -> high
     assert active_promoted[0]["metadata"]["secret_type"] == "Google API Key"
     
-    # Verify accounting ledger has both included active findings + stub correctness (total 3 findings)
-    assert len(report["accounting_ledger"]["included"]) == 3
+    # Verify accounting ledger has both included active findings + stub correctness (total 2 findings)
+    assert len(report["accounting_ledger"]["included"]) == 2
 

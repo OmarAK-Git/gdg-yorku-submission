@@ -52,7 +52,7 @@ This file tracks the status, dependencies, and references for all implementation
 - [x] **Task 10 — Rewrite Correctness Rubric/Methodology**
   - **Description**: Author correctness-only review criteria, capping no-spec findings at `medium`.
   - **Dependencies**: Task 9
-- [ ] **Task 11 — Deterministic Security Baseline Pass (Python AST)**
+- [x] **Task 11 — Deterministic Security Baseline Pass (Python AST)**
   - **Description**: Implement deterministic Python AST checkers (SQLi, shell=True, unsafe deserialize, missing auth, path traversal, verify=False).
   - **Dependencies**: Tasks 5, 6, 7, 8
   - **References**: [R6]

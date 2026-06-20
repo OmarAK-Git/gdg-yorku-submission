@@ -6,15 +6,14 @@
 - Exposure-Model Prompt Corpus (Task 6) is implemented and verified.
 - Secret Scanner + Redaction Invariant (Task 7) is completed, porting the secret gate detection, redaction invariant, and salted hash fingerprints.
 - Evidence-Plane Prompt Builder (Task 8) is completed, building a nonced, sanitized, and redacted prompt representation of the prompt-exposed corpus.
-- Full pytest suite (120 tests) passes with no warnings or errors.
-- Task 9 (Source-of-Truth Discovery) and Task 10 (Rewrite Correctness Rubric/Methodology) are completed and verified (155 tests passing).
-- Moving forward in Sprint 3: Correctness Agent & Baseline Security.
+- Task 9 (Source-of-Truth Discovery) and Task 10 (Rewrite Correctness Rubric/Methodology) are completed and verified.
+- Task 11 (Deterministic Python AST Baseline security checkers) is completed, integrated, and verified.
+- Full pytest suite (172 tests) passes successfully with no warnings or errors.
 
 ## Active Focus
-- **Task 11 — Deterministic Security Baseline Pass (Python AST)**: Implement deterministic Python AST checkers.
+- **Task 12 — Correctness Agent Adapter**: Implement Vertex AI Gemini correctness agent correctly grounded via evidence-refs and budget-aware.
 
 ## Next Steps
-1. Create/refactor `src/gdg_yorku_submission/security/deterministic.py`.
-2. Implement unit tests in `tests/test_security_deterministic.py`.
+1. Design correctness agent adapter in `src/gdg_yorku_submission/correctness/`.
+2. Implement unit and integration tests for the correctness adapter.
 3. Verify via pytest.
-4. Update `memory-bank/progress.md`.

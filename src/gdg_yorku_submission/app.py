@@ -112,8 +112,9 @@ async def review_upload(
         orch.run_secret_gate(gate_findings)
 
         # 4. Run specialists
+        from gdg_yorku_submission.security import make_security_specialist
         orch.run_specialist("correctness", correctness_specialist_stub)
-        orch.run_specialist("security", security_specialist_stub)
+        orch.run_specialist("security", make_security_specialist(orch))
 
         # 5. Compile and return report
         try:

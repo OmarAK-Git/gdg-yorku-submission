@@ -1,7 +1,7 @@
 import uuid
 import abc
 import copy
-from typing import List, Dict, Any, Callable
+from typing import List, Dict, Any, Callable, Union, Tuple
 from gdg_yorku_submission.schemas import (
     ReviewFinding,
     Perspective,
@@ -70,6 +70,14 @@ class Orchestrator(abc.ABC):
         state["corpus_summary"] = summary
         self._save_state(state)
 
+    def set_run_metadata(self, key: str, value: Any) -> None:
+        """Sets a key-value pair in the run metadata."""
+        state = self._get_state()
+        if "run_metadata" not in state:
+            state["run_metadata"] = {}
+        state["run_metadata"][key] = value
+        self._save_state(state)
+
     def run_secret_gate(self, gate_findings: List[GateFinding]) -> None:
         """Sets the preflight gate findings and updates gate_status and secret_scan_summary."""
         state = self._get_state()
@@ -124,11 +132,12 @@ class Orchestrator(abc.ABC):
     def run_specialist(
         self,
         perspective: Perspective,
-        specialist_func: Callable[[], List[ReviewFinding]]
+        specialist_func: Callable[[], Union[List[ReviewFinding], Tuple[List[ReviewFinding], str, str]]]
     ) -> None:
         """
         Runs a specialist reviewer function.
-        Records status as 'complete' on success, or 'failed' on exception.
+        Records status as 'complete' on success (or custom status if returned as tuple),
+        or 'failed' on exception.
         Does not abort the orchestrator run on specialist failure.
         """
         allowed_perspectives = {"correctness", "security", "blast_radius"}
@@ -143,7 +152,19 @@ class Orchestrator(abc.ABC):
             raise RuntimeError("Cannot run specialist after ID finalization.")
         
         try:
-            findings = specialist_func()
+            result = specialist_func()
+            if isinstance(result, tuple):
+                if len(result) != 3:
+                    raise ValueError(
+                        f"Specialist returned tuple of length {len(result)} "
+                        f"but expected exactly 3: (findings, status, reason)"
+                    )
+                findings, custom_status, custom_reason = result
+            else:
+                findings = result
+                custom_status = "complete"
+                custom_reason = ""
+
             self.write_findings(perspective, findings)
             
             # Read state again since write_findings modified it
@@ -151,8 +172,8 @@ class Orchestrator(abc.ABC):
             all_ids = [f.id for f in state["findings"] if f.perspective == perspective]
             status = PerspectiveStatus(
                 perspective=perspective,
-                status="complete",
-                reason="",
+                status=custom_status,
+                reason=custom_reason,
                 finding_ids=all_ids
             )
             state["perspective_statuses"][perspective] = status
@@ -251,6 +272,7 @@ class Orchestrator(abc.ABC):
         
         return ReviewReport(
             run_metadata={
+                **state.get("run_metadata", {}),
                 "run_id": self.run_id,
                 "orchestrator_type": self.__class__.__name__
             },

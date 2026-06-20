@@ -13,6 +13,16 @@ GDG-YorkU Code Review is a multi-agent automated code-review system developed fo
 - **Traceability Ledger**: Full conservation accounting (no silent finding drops by the LLM).
 - **Deterministic Terminal Report**: Universal reliability fallback.
 
+## Supported AST Security Rules
+The deterministic security baseline scanner implements 6 high-precision Python AST checkers:
+1. **SQL Injection (SQLi)**: Flags DB `execute`/`executemany` calls receiving non-literal queries built via f-strings, concatenation, or format calls.
+2. **Command Injection (`shell=True`)**: Flags subprocess calls containing `shell=True` with non-literal commands, or os calls with non-literal arguments.
+3. **Unsafe Deserialization**: Flags `pickle.load`/`loads` or `yaml.load` on non-literal/untrusted data (unless `yaml.load` specifies `Loader=yaml.SafeLoader` or similar).
+4. **Missing Authorization**: Flags Flask/FastAPI POST/PUT/PATCH/DELETE write routes lacking authorization decorators or dependency injections. The scanner matches standard authentication/authorization keywords in decorators and dependencies (case-insensitive substring check):
+   - `auth`, `login`, `jwt`, `session`, `permission`, `require`, `guard`, `protect`, `admin`, `role`, `user`.
+5. **Path Traversal**: Tracks input parameters and `request` references in route functions, flags calls to `open`, `Path`, `os.path.join`, and `joinpath` using untrusted variables without a prior normalization/validation check (`resolve`, `abspath`, `realpath`, `startswith`, or `".."` checks).
+6. **Disabled SSL Verification (`verify=False`)**: Flags `requests`/`httpx` HTTP calls containing keyword argument `verify=False`.
+
 ## Quick Start & Installation
 
 ### Setup Environment
