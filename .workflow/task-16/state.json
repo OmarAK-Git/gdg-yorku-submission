@@ -1,0 +1,28 @@
+{
+  "run": "task-16",
+  "status": "completed",
+  "current_task": null,
+  "blocked": false,
+  "blockers": [],
+  "last_updated": "2026-06-21",
+  "tasks": [
+    {
+      "id": "TASK-16-1",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Create samples/driftstore/* files"
+    },
+    {
+      "id": "TASK-16-2",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Create samples/driftstore.zip archive"
+    },
+    {
+      "id": "TASK-16-3",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Implement tests/test_demo_sample.py and verify"
+    }
+  ]
+}

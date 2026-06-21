@@ -1,8 +1,8 @@
 # Progress
 
 ## Project Status
-- **Phase**: Sprint 4: Coordination & Validation
-- **Overall Completion**: 53.8% (14 / 26 tasks complete)
+- **Phase**: Sprint 5: Coordination & Validation (Demo prep)
+- **Overall Completion**: 61.5% (16 / 26 tasks complete)
 
 ## Completed Tasks
 - [x] Task 1: Fresh Repo Baseline + Provenance Guard
@@ -19,13 +19,16 @@
 - [x] Task 12: Correctness Agent Adapter
 - [x] Task 13: Coordinator Compiler
 - [x] Task 14: Conservation Validator
+- [x] Task 15: Bounded Regeneration + Deterministic Terminal Report
+- [x] Task 16: Pinned Demo Sample
 - [x] Sprint 2 Gate Review Fixes (Task 7 context threading, Task 8 pre-conditions, state preservation, precise virtualenv skips, descope documentation, and HTTP E2E tests)
 
 ## In Progress Tasks
 *None*
 
-## Upcoming Tasks (Sprint 4)
-- [ ] Task 15: Bounded Regeneration + Deterministic Terminal Report
+## Upcoming Tasks (Sprint 5 & Close-Out)
+- [ ] Task 17: Frontend Report Viewer
+- [ ] Task 18: Out-of-Band Validator-Rejection Demo Hook
 
 ## Gaps, Issues, and Risks
 - **Google ADK integration**: High dependency risk. Mitigated by Orchestrator abstraction seam allowing a plain Python fallback.
@@ -33,5 +36,4 @@
 - **Secret leaks**: Checked system-wide using a single `RedactionContext`.
 - **Commit window constraints**: Mandatory check for author/commit timestamps ≥ 2026-06-17.
 - **Tag for Task 13–14 (Deferred Constraint)**: The correctness agent discards `sot_result.sot_text` and feeds the full file into the evidence plane, bypassing the README heading-allowlist. When the validator's evidence-existence check is built, first define how the SoT span is set — inject `sot_text` as the spec block, or constrain the evidence plane's SoT entry to the allowlisted span — and document the choice.
-- **Tag for Task 16/24 (Deferred Constraint)**: Correctness has only run with the synthetic placeholder finding. Those tasks must produce and assert on a real Gemini-grounded finding's content through a no-monkeypatch path.
-
+- **Tag for Task 16/24 (Deferred Constraint)**: Correctness grounding and coordinate boundaries validation have been verified E2E via the demo sample tests; actual LLM correctness detection is deferred to Task 24.

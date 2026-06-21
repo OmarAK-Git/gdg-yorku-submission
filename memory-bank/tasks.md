@@ -74,7 +74,7 @@ This file tracks the status, dependencies, and references for all implementation
   - **Description**: Bounded retry loop for validator failures falling back to zero-LLM terminal report.
   - **Dependencies**: Task 14
   - **References**: [R7]
-- [ ] **Task 16 — Pinned Demo Sample**
+- [x] **Task 16 — Pinned Demo Sample**
   - **Description**: Build and verify demo repo `samples/driftstore` to trigger required review findings.
   - **Dependencies**: Tasks 5, 6, 7, 8, 9, 11
 - [ ] **Task 17 — Frontend Report Viewer**
