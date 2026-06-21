@@ -66,7 +66,7 @@ This file tracks the status, dependencies, and references for all implementation
   - **Description**: Implement coordinator agent to group/merge findings within same perspective/source and output a consolidated report.
   - **Dependencies**: Tasks 2, 4, 11, 12
   - **References**: [R4], [R8]
-- [ ] **Task 14 — Conservation Validator**
+- [x] **Task 14 — Conservation Validator**
   - **Description**: Validate reports deterministic invariants (no high omission, correct merge severity, coordinate existence).
   - **Dependencies**: Task 13
   - **References**: [R4], [R5]

@@ -591,3 +591,39 @@ def test_validator_rejects_finding_out_of_bounds_location(base_corpus):
     
     errors = validate_report_invariants(report, [f_bad_loc], base_corpus)
     assert any("location lines 99-100 are out of bounds" in e for e in errors)
+
+def test_compile_report_never_fails_on_validator_crash(base_corpus, monkeypatch):
+    f1 = make_finding("f1", severity=Severity.MEDIUM)
+    
+    orch = InProcessOrchestrator()
+    orch.start_run()
+    orch.set_corpus(base_corpus)
+    orch.run_specialist("correctness", lambda: ([f1], "complete", ""))
+    
+    orch.finalize_ids()
+    finalized = orch.read_state()["findings"]
+    f1_id = finalized[0].id
+    
+    coord_response = {
+        "merges": [],
+        "omissions": [],
+        "recommended_actions": {f1_id: "Fix f1 properly"}
+    }
+    
+    fake_client = GeminiClient(
+        use_fake=True,
+        fake_responses=[json.dumps(coord_response)]
+    )
+    
+    # Monkeypatch the validator to simulate a validator bug/crash
+    import gdg_yorku_submission.coordinator
+    def mock_validate_raise(*args, **kwargs):
+        raise RuntimeError("validator internal bug")
+    monkeypatch.setattr(gdg_yorku_submission.coordinator, "validate_report_invariants", mock_validate_raise)
+    
+    # This must not raise exception, but instead log it loudly and fall back to terminal_fallback
+    report = orch.compile_report(gemini_client=fake_client)
+    
+    assert report.run_metadata["compilation_mode"] == "terminal_fallback"
+    assert any("Validator internal crash" in w for w in report.validator_warnings)
+

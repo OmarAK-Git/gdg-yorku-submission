@@ -1,5 +1,5 @@
-from gdg_yorku_submission.coordinator.compiler import (
-    run_coordinator_compilation,
+from gdg_yorku_submission.coordinator.compiler import run_coordinator_compilation
+from gdg_yorku_submission.coordinator.validator import (
     validate_report_invariants,
     parse_evidence_ref
 )
