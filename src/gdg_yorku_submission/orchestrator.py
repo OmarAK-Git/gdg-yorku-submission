@@ -335,60 +335,35 @@ class Orchestrator(abc.ABC):
         # Order report findings by severity (descending rank) then path
         report_findings.sort(key=lambda x: (-x.severity.rank, x.location.path, x.location.line_start))
         
-        # Split active vs contested findings
+        # Split active vs contested findings from the merged report findings list.
+        # This is necessary because terminal compilation does not use reconstruct_report_components.
         active_findings = [rf for rf in report_findings if rf.status != "contested"]
         contested_findings = [rf for rf in report_findings if rf.status == "contested"]
-        
-        # Enforce contested K-cap on compilation (remediation) (point 2)
-        from gdg_yorku_submission.coordinator.validator import MAX_CONTESTED_BELOW_FLOOR
-        from gdg_yorku_submission.schemas import OmitLedgerEntry
-        
-        below_floor_contested = [rf for rf in contested_findings if not is_at_or_above_floor(rf.severity)]
-        omitted_ledger_entries = []
-        if len(below_floor_contested) > MAX_CONTESTED_BELOW_FLOOR:
-            excess_below_floor = below_floor_contested[MAX_CONTESTED_BELOW_FLOOR:]
-            excess_ids = {rf.id for rf in excess_below_floor}
-            
-            contested_findings = [rf for rf in contested_findings if rf.id not in excess_ids]
-            
-            for rf in excess_below_floor:
-                omitted_ledger_entries.append(
-                    OmitLedgerEntry(id=rf.id, reason=f"Contested finding truncated due to contested K-cap limits ({MAX_CONTESTED_BELOW_FLOOR}) exceeded")
-                )
-    
-        severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
-        for rf in active_findings:
-            severity_counts[rf.severity.value] = severity_counts.get(rf.severity.value, 0) + 1
-            
-        high_critical = [rf for rf in active_findings if is_at_or_above_floor(rf.severity)]
         
         ledger = AccountingLedger(
             included=[rf.id for rf in active_findings],
             merged=[],
-            omitted=omitted_ledger_entries,
+            omitted=[],
             contested=[rf.id for rf in contested_findings]
         )
         
+        from gdg_yorku_submission.coordinator.validator import remediate_contested_kcap, build_review_report
+        contested_findings, ledger = remediate_contested_kcap(contested_findings, ledger)
+        
         statuses = list(state["perspective_statuses"].values())
         
-        report = ReviewReport(
-            run_metadata={
-                **state.get("run_metadata", {}),
-                "run_id": self.run_id,
-                "orchestrator_type": self.__class__.__name__,
-                "compilation_mode": "terminal_fallback"
-            },
-            corpus_summary=state["corpus_summary"],
-            perspective_statuses=statuses,
-            gate_status=state["gate_status"],
-            severity_counts=severity_counts,
-            high_critical_findings=high_critical,
-            findings=active_findings,
-            contested_items=contested_findings,
-            secret_scan_summary=sanitized_gate_findings,
-            accounting_ledger=ledger,
-            validator_warnings=terminal_warnings
+        report = build_review_report(
+            self,
+            state,
+            active_findings,
+            contested_findings,
+            ledger,
+            statuses,
+            state["gate_status"],
+            compilation_mode="terminal_fallback",
+            secret_scan_summary=sanitized_gate_findings
         )
+        report.validator_warnings = terminal_warnings
         
         try:
             errors = validate_report_invariants(report, findings, corpus)
@@ -430,65 +405,25 @@ class Orchestrator(abc.ABC):
             )
         except Exception as e:
             logger.warning(f"Coordinator compilation failed, falling back to terminal report. Error: {e}")
-            return self.compile_terminal_report()
+            return self.compile_terminal_report(fallback_warnings=[str(e)])
 
         # Build the report and enforce K-cap (outside the main compilation try block for distinct bug logging)
         try:
-            # Split active vs contested findings
-            active_findings = [rf for rf in compiled_findings if rf.status != "contested"]
+            # Invariant: compiled_findings from coordinator contains only active findings
+            active_findings = compiled_findings
             
-            # Enforce contested K-cap on compilation (remediation) (point 2)
-            from gdg_yorku_submission.coordinator.validator import MAX_CONTESTED_BELOW_FLOOR
-            from gdg_yorku_submission.schemas import OmitLedgerEntry
+            from gdg_yorku_submission.coordinator.validator import remediate_contested_kcap, build_review_report
+            contested_items, ledger = remediate_contested_kcap(contested_items, ledger)
             
-            below_floor_contested = [rf for rf in contested_items if not is_at_or_above_floor(rf.severity)]
-            if len(below_floor_contested) > MAX_CONTESTED_BELOW_FLOOR:
-                excess_below_floor = below_floor_contested[MAX_CONTESTED_BELOW_FLOOR:]
-                excess_ids = {rf.id for rf in excess_below_floor}
-                
-                contested_items = [rf for rf in contested_items if rf.id not in excess_ids]
-                
-                # Update ledger contested list
-                ledger.contested = [fid for fid in ledger.contested if fid not in excess_ids]
-                
-                # Move excess items to omitted ledger list
-                for rf in excess_below_floor:
-                    # If it was a merge, we must omit all its constituents instead
-                    merge_entry = next((m for m in ledger.merged if m.output_id == rf.id), None)
-                    if merge_entry:
-                        for cid in merge_entry.input_ids:
-                            ledger.omitted.append(
-                                OmitLedgerEntry(id=cid, reason=f"Contested constituent omitted due to contested K-cap truncation limit ({MAX_CONTESTED_BELOW_FLOOR}) exceeded")
-                            )
-                        ledger.merged = [m for m in ledger.merged if m.output_id != rf.id]
-                    else:
-                        ledger.omitted.append(
-                            OmitLedgerEntry(id=rf.id, reason=f"Contested finding omitted due to contested K-cap truncation limit ({MAX_CONTESTED_BELOW_FLOOR}) exceeded")
-                        )
-            
-            severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
-            for rf in active_findings:
-                severity_counts[rf.severity.value] = severity_counts.get(rf.severity.value, 0) + 1
-                
-            high_critical = [rf for rf in active_findings if is_at_or_above_floor(rf.severity)]
-            
-            report = ReviewReport(
-                run_metadata={
-                    **state.get("run_metadata", {}),
-                    "run_id": self.run_id,
-                    "orchestrator_type": self.__class__.__name__,
-                    "compilation_mode": "coordinated"
-                },
-                corpus_summary=state["corpus_summary"],
-                perspective_statuses=statuses,
-                gate_status=state["gate_status"],
-                severity_counts=severity_counts,
-                high_critical_findings=high_critical,
-                findings=active_findings,
-                contested_items=contested_items,
-                secret_scan_summary=state["secret_scan_summary"],
-                accounting_ledger=ledger,
-                validator_warnings=[]
+            report = build_review_report(
+                self,
+                state,
+                active_findings,
+                contested_items,
+                ledger,
+                statuses,
+                state["gate_status"],
+                compilation_mode="coordinated"
             )
         except Exception as e:
             logger.error(f"CRITICAL: Report construction or K-cap remediation logic crashed: {e}", exc_info=True)

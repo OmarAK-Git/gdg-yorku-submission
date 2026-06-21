@@ -1,0 +1,28 @@
+{
+  "run": "task-15",
+  "status": "completed",
+  "current_task": null,
+  "blocked": false,
+  "blockers": [],
+  "last_updated": "2026-06-21",
+  "tasks": [
+    {
+      "id": "TASK-005",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Refactor/deduplicate K-cap remediation and report building into shared helpers in validator.py"
+    },
+    {
+      "id": "TASK-006",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Implement error sanitization and error remediability checks in compiler.py"
+    },
+    {
+      "id": "TASK-007",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Refactor existing tests and add comprehensive tests for prompt injection, zero-LLM usage, and real-path validation failures"
+    }
+  ]
+}

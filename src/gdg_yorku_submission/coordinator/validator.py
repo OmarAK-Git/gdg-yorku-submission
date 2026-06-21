@@ -24,6 +24,98 @@ class ReportValidationError(ValueError):
     """Raised when report validation fails due to invariant violations."""
     pass
 
+def remediate_contested_kcap(
+    contested_items: List[ReportFinding],
+    ledger: AccountingLedger
+) -> Tuple[List[ReportFinding], AccountingLedger]:
+    """
+    Enforces contested K-cap on compilation (remediation) (point 2).
+    Sorts contested items below the high floor by severity rank so higher-severity findings survive.
+    """
+    from gdg_yorku_submission.severity import is_at_or_above_floor
+    from gdg_yorku_submission.schemas import OmitLedgerEntry
+    
+    below_floor_contested = [rf for rf in contested_items if not is_at_or_above_floor(rf.severity)]
+    if len(below_floor_contested) > MAX_CONTESTED_BELOW_FLOOR:
+        # Sort descending by severity rank (e.g. Medium > Low > Info)
+        below_floor_contested.sort(key=lambda x: -x.severity.rank)
+        
+        excess_below_floor = below_floor_contested[MAX_CONTESTED_BELOW_FLOOR:]
+        excess_ids = {rf.id for rf in excess_below_floor}
+        
+        contested_items = [rf for rf in contested_items if rf.id not in excess_ids]
+        
+        # Update ledger contested list
+        ledger.contested = [fid for fid in ledger.contested if fid not in excess_ids]
+        
+        # Move excess items to omitted ledger list
+        for rf in excess_below_floor:
+            # If it was a merge, we must omit all its constituents instead
+            merge_entry = next((m for m in ledger.merged if m.output_id == rf.id), None)
+            if merge_entry:
+                for cid in merge_entry.input_ids:
+                    if not any(o.id == cid for o in ledger.omitted):
+                        ledger.omitted.append(
+                            OmitLedgerEntry(
+                                id=cid,
+                                reason=f"Contested constituent omitted due to contested K-cap truncation limit ({MAX_CONTESTED_BELOW_FLOOR}) exceeded"
+                            )
+                        )
+                ledger.merged = [m for m in ledger.merged if m.output_id != rf.id]
+            else:
+                if not any(o.id == rf.id for o in ledger.omitted):
+                    ledger.omitted.append(
+                        OmitLedgerEntry(
+                            id=rf.id,
+                            reason=f"Contested finding omitted due to contested K-cap truncation limit ({MAX_CONTESTED_BELOW_FLOOR}) exceeded"
+                        )
+                    )
+    return contested_items, ledger
+
+def build_review_report(
+    orch: Any,
+    state: Dict[str, Any],
+    findings: List[ReportFinding],
+    contested: List[ReportFinding],
+    ledger: AccountingLedger,
+    statuses: List[PerspectiveStatus],
+    gate_status: GateStatus,
+    compilation_mode: str,
+    secret_scan_summary: Optional[List[Any]] = None
+) -> ReviewReport:
+    """
+    Constructs the ReviewReport object consistently from the compiled findings and ledger state.
+    """
+    from gdg_yorku_submission.severity import is_at_or_above_floor
+    
+    severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
+    for rf in findings:
+        severity_counts[rf.severity.value] = severity_counts.get(rf.severity.value, 0) + 1
+        
+    high_critical = [rf for rf in findings if is_at_or_above_floor(rf.severity)]
+    
+    if secret_scan_summary is None:
+        secret_scan_summary = state.get("secret_scan_summary", [])
+        
+    return ReviewReport(
+        run_metadata={
+            **state.get("run_metadata", {}),
+            "run_id": orch.run_id,
+            "orchestrator_type": orch.__class__.__name__,
+            "compilation_mode": compilation_mode
+        },
+        corpus_summary=state.get("corpus_summary", {"file_count": 0, "total_bytes": 0}),
+        perspective_statuses=statuses,
+        gate_status=gate_status,
+        severity_counts=severity_counts,
+        high_critical_findings=high_critical,
+        findings=findings,
+        contested_items=contested,
+        secret_scan_summary=secret_scan_summary,
+        accounting_ledger=ledger,
+        validator_warnings=[]
+    )
+
 def parse_evidence_ref(ref: str) -> Tuple[str, int, int]:
     """Parses evidence ref of form file:path#start-end or file:path#line."""
     if not ref.startswith("file:"):

@@ -20,9 +20,12 @@ from gdg_yorku_submission.schemas import (
 from gdg_yorku_submission.severity import Severity, is_at_or_above_floor
 from gdg_yorku_submission.llm.gemini import GeminiClient
 from gdg_yorku_submission.budget import BudgetExhaustedError
+import copy
 from gdg_yorku_submission.coordinator.validator import (
     parse_evidence_ref,
-    validate_report_invariants
+    validate_report_invariants,
+    remediate_contested_kcap,
+    build_review_report
 )
 
 logger = logging.getLogger(__name__)
@@ -67,6 +70,28 @@ class CoordinatorOutput(BaseModel):
         description="Recommended next actions for individual (unmerged, included) findings, mapping ID to action text."
     )
 
+
+
+def is_remediable_error(err: str) -> bool:
+    """
+    Classifies errors as coordinator-remediable or not.
+    Errors regarding location out-of-bounds, invalid evidence_ref format/paths,
+    or verbatim field mismatches (where the coordinator cannot change the properties of
+    the input findings) are non-remediable.
+    """
+    non_remediable_keywords = [
+        "out of bounds",
+        "cites unknown path",
+        "does not match input finding severity",
+        "does not match input status",
+        "claim was altered",
+        "contains invalid location",
+        "contains malformed evidence_ref"
+    ]
+    for kw in non_remediable_keywords:
+        if kw.lower() in err.lower():
+            return False
+    return True
 
 
 def run_coordinator_compilation(
@@ -141,8 +166,10 @@ def run_coordinator_compilation(
         current_prompt = prompt
         if validation_errors:
             error_details = "\n".join(validation_errors)
+            # Sanitize feedback errors to prevent prompt-injection delimiter breakout (Point 1)
+            sanitized_errors = sanitize_untrusted_input(error_details, nonce)
             current_prompt += (
-                f"\n\nYOUR PREVIOUS RESPONSE FAILED VALIDATION with the following errors:\n{error_details}\n"
+                f"\n\nYOUR PREVIOUS RESPONSE FAILED VALIDATION with the following errors:\n{sanitized_errors}\n"
                 "Please fix these errors and regenerate conforming to all rules."
             )
 
@@ -173,7 +200,34 @@ def run_coordinator_compilation(
                 parsed_output, input_findings, corpus
             )
             if not errors:
-                return findings, contested, ledger
+                draft_findings = copy.deepcopy(findings)
+                draft_contested = copy.deepcopy(contested)
+                draft_ledger = copy.deepcopy(ledger)
+                
+                # Apply contested K-cap remediation logic inside the compiler loop
+                draft_contested, draft_ledger = remediate_contested_kcap(draft_contested, draft_ledger)
+                
+                state = orch.read_state()
+                draft_report = build_review_report(
+                    orch,
+                    state,
+                    draft_findings,
+                    draft_contested,
+                    draft_ledger,
+                    statuses,
+                    gate_status,
+                    compilation_mode="coordinated"
+                )
+                
+                errors = validate_report_invariants(draft_report, input_findings, corpus)
+                if not errors:
+                    return draft_findings, draft_contested, draft_ledger
+                
+                # Classify errors as coordinator-remediable or not; bypass retries if all are non-remediable (Point 4)
+                remediable_errors = [e for e in errors if is_remediable_error(e)]
+                if not remediable_errors:
+                    logger.warning(f"All validation errors are non-remediable. Bypassing retries to conserve budget. Errors: {errors}")
+                    raise ValueError(f"Coordinator compilation failed with non-remediable errors: {errors}")
                 
             validation_errors = errors
             logger.warning(f"Coordinator attempt {attempt + 1} validation failed: {validation_errors}")
@@ -181,6 +235,12 @@ def run_coordinator_compilation(
             logger.error(f"Budget exhausted during coordinator compilation: {e}")
             raise ValueError("Coordinator compilation failed due to budget exhaustion") from e
         except Exception as e:
+            # Propagate non-remediable compiler errors directly
+            if isinstance(e, ValueError) and "non-remediable errors" in str(e):
+                raise e
+            # A validator internal crash (like RuntimeError) should immediately raise to fall back (Point 5)
+            if not isinstance(e, (json.JSONDecodeError, KeyError, TypeError, ValueError)):
+                raise e
             logger.warning(f"Error parsing coordinator response on attempt {attempt + 1}: {e}")
             validation_errors = [f"JSON parsing or structure error: {str(e)}"]
 

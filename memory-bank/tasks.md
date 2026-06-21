@@ -70,7 +70,7 @@ This file tracks the status, dependencies, and references for all implementation
   - **Description**: Validate reports deterministic invariants (no high omission, correct merge severity, coordinate existence).
   - **Dependencies**: Task 13
   - **References**: [R4], [R5]
-- [ ] **Task 15 — Bounded Regeneration + Deterministic Terminal Report**
+- [x] **Task 15 — Bounded Regeneration + Deterministic Terminal Report**
   - **Description**: Bounded retry loop for validator failures falling back to zero-LLM terminal report.
   - **Dependencies**: Task 14
   - **References**: [R7]
