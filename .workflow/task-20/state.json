@@ -1,0 +1,16 @@
+{
+  "run": "task-20",
+  "status": "completed",
+  "current_task": null,
+  "blocked": false,
+  "blockers": [],
+  "last_updated": "2026-06-22",
+  "tasks": [
+    {
+      "id": "remediation-pass",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Remediation of debate loop, async paths, and deterministic IDs completed."
+    }
+  ]
+}

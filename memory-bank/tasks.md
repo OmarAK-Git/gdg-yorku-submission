@@ -91,10 +91,10 @@ This file tracks the status, dependencies, and references for all implementation
   - **Description**: Schemas for debate rounds: candidates, survived, defeated, contested.
   - **Dependencies**: Task 2
   - **References**: [R4]
-- [ ] **Task 20 — Port Crucible Debate Loop**
+- [x] **Task 20 — Port Crucible Debate Loop**
   - **Description**: Tuned stop conditions (stability and token limits), scoring metrics.
   - **Dependencies**: Task 19
-- [ ] **Task 21 — Security Debate Adapter**
+- [x] **Task 21 — Security Debate Adapter**
   - **Description**: Integrate debate loop with Claude/Gemini, with baseline fallback on failure.
   - **Dependencies**: Tasks 7, 8, 20
   - **References**: [R7]

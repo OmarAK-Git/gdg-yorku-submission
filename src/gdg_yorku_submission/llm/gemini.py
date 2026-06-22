@@ -68,9 +68,29 @@ class GeminiClient:
 
         if self.use_fake:
             # Fake/mock execution
-            if self._fake_index < len(self.fake_responses):
-                response_text = self.fake_responses[self._fake_index]
+            if self.fake_responses:
+                idx = min(self._fake_index, len(self.fake_responses) - 1)
+                response_text = self.fake_responses[idx]
                 self._fake_index += 1
+            elif response_schema:
+                try:
+                    from pydantic import BaseModel
+                    if issubclass(response_schema, BaseModel):
+                        if response_schema.__name__ == "CoordinatorOutput":
+                            dummy = {
+                                "merges": [],
+                                "omissions": [],
+                                "recommended_actions": {}
+                            }
+                            response_text = json.dumps(dummy)
+                        else:
+                            instance = response_schema()
+                            response_text = instance.model_dump_json()
+                    else:
+                        response_text = "{}"
+                except Exception as e:
+                    logger.warning(f"Failed to generate fake response for schema {response_schema}: {e}")
+                    response_text = "{}"
             else:
                 # Return a default valid correctness finding JSON
                 response_text = json.dumps([

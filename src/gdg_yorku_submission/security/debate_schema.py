@@ -5,8 +5,50 @@ from gdg_yorku_submission.severity import Severity, is_at_or_above_floor
 
 DebateResolution = Literal["survived", "defeated", "contested"]
 
+class Question(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    question: str = Field(..., description="The question in plain English")
+    why_it_matters: str = Field(..., description="Why this question matters (one sentence)")
+    recommended_default: str = Field(..., description="The recommended default answer")
+    default_reasoning: str = Field(..., description="Reasoning for the recommended default")
+
+class Proposal(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    id: Optional[str] = Field(default=None, description="Deterministic ID, e.g. C-R1-P1")
+    adversary: Optional[Literal["defender", "challenger"]] = Field(default=None, description="The proposer ('defender' or 'challenger')")
+    text: str = Field(..., description="The proposed change or finding detail")
+    severity: Severity = Field(..., description="The severity level of the proposal")
+    groundednessCitation: str = Field(..., description="File path, function, or line number in the corpus, or original spec")
+    reasoning: str = Field(..., description="The reasoning behind the proposal")
+
+class OpponentScore(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    proposal_id: str = Field(..., description="The ID of the opponent's proposal being scored")
+    verdict: Literal["accept", "modify", "reject"] = Field(..., description="Score verdict")
+    reasoning: str = Field(..., description="Reasoning for the score")
+    modification: Optional[str] = Field(default=None, description="Suggested modification text, required if verdict is modify")
+
+    @model_validator(mode="after")
+    def validate_modification_on_modify(self) -> "OpponentScore":
+        if self.verdict == "modify":
+            if not self.modification or not self.modification.strip():
+                raise ValueError("modification is required when verdict is modify")
+        return self
+
+class TurnResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    summary: str = Field(..., description="Text summary of the turn analysis")
+    opponent_scores: List[OpponentScore] = Field(default_factory=list, description="Scores for the opponent's previous proposals")
+    new_proposals: List[Proposal] = Field(default_factory=list, description="New proposals from this turn")
+    disagreements: List[str] = Field(default_factory=list, description="List of open/counter-arg disagreements that proposer has addressed")
+    questions_for_human: List[Question] = Field(default_factory=list, description="Questions for the human if any")
+
 class DebateMessage(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     role: Literal["defender", "challenger", "system"] = Field(..., description="Role of the debater or system message")
     message: str = Field(..., description="Argument text / content")
@@ -20,10 +62,16 @@ class DebateMessage(BaseModel):
         return v
 
 class DebateRound(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     round_number: int = Field(..., description="1-indexed round number")
     messages: List[DebateMessage] = Field(default_factory=list, description="Messages exchanged during this round")
+    
+    # Sequential turns and Crucible metrics metadata
+    defender_turn: Optional[TurnResponse] = Field(default=None, description="Defender's turn response")
+    challenger_turn: Optional[TurnResponse] = Field(default=None, description="Challenger's turn response")
+    working_prompt_after: Optional[str] = Field(default=None, description="Working prompt/guidelines state after this round")
+    scores_this_round: Dict[str, float] = Field(default_factory=dict, description="Defender and challenger scores gained in this round")
 
     @field_validator("round_number")
     @classmethod
@@ -33,7 +81,7 @@ class DebateRound(BaseModel):
         return v
 
 class DebateCandidate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     finding: Finding = Field(..., description="The finding being debated")
     resolution: Optional[DebateResolution] = Field(None, description="Outcome of the debate for this finding")
@@ -50,7 +98,7 @@ class DebateCandidate(BaseModel):
         return self
 
 class DebateLedger(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     candidates: List[DebateCandidate] = Field(default_factory=list, description="All debate candidates and their status")
 
@@ -137,7 +185,7 @@ class DebateLedger(BaseModel):
         return omitted_list
 
 class DebateSession(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     session_id: str = Field(..., description="Unique ID for the debate session")
     ledger: DebateLedger = Field(default_factory=DebateLedger, description="Structured outcome ledger")
@@ -150,3 +198,10 @@ class DebateSession(BaseModel):
         if not v.strip():
             raise ValueError("session_id must be a non-empty string")
         return v.strip()
+
+class AdversaryResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    proposals: List[Proposal] = Field(default_factory=list, description="List of proposals from the adversary")
+    questions_for_human: List[Question] = Field(default_factory=list, description="Questions for the human if any")
+

@@ -193,6 +193,8 @@ def run_coordinator_compilation(
                 cleaned_text = "\n".join(lines).strip()
 
             parsed_json = json.loads(cleaned_text)
+            if not isinstance(parsed_json, dict):
+                raise ValueError(f"Coordinator response is not a JSON object/dict (got {type(parsed_json).__name__})")
             parsed_output = CoordinatorOutput(**parsed_json)
 
             # Reconstruct and pre-validate selections locally

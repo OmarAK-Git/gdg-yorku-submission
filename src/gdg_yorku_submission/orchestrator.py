@@ -160,7 +160,83 @@ class Orchestrator(abc.ABC):
             raise RuntimeError("Cannot run specialist after ID finalization.")
         
         try:
-            result = specialist_func()
+            import inspect
+            if inspect.iscoroutinefunction(specialist_func):
+                import anyio
+                result = anyio.run(specialist_func)
+            else:
+                result = specialist_func()
+                if inspect.iscoroutine(result):
+                    import anyio
+                    result = anyio.run(lambda: result)
+
+            if isinstance(result, tuple):
+                if len(result) != 3:
+                    raise ValueError(
+                        f"Specialist returned tuple of length {len(result)} "
+                        f"but expected exactly 3: (findings, status, reason)"
+                    )
+                findings, custom_status, custom_reason = result
+            else:
+                findings = result
+                custom_status = "complete"
+                custom_reason = ""
+
+            self.write_findings(perspective, findings)
+            
+            # Read state again since write_findings modified it
+            state = self._get_state()
+            all_ids = [f.id for f in state["findings"] if f.perspective == perspective]
+            status = PerspectiveStatus(
+                perspective=perspective,
+                status=custom_status,
+                reason=custom_reason,
+                finding_ids=all_ids
+            )
+            state["perspective_statuses"][perspective] = status
+            self._save_state(state)
+        except Exception as e:
+            state = self._get_state()
+            status = PerspectiveStatus(
+                perspective=perspective,
+                status="failed",
+                reason=str(e),
+                finding_ids=[]
+            )
+            state["perspective_statuses"][perspective] = status
+            self._save_state(state)
+
+    async def run_specialist_async(
+        self,
+        perspective: Perspective,
+        specialist_func: Callable[[], Any]
+    ) -> None:
+        """
+        Runs a specialist reviewer function asynchronously.
+        Records status as 'complete' on success (or custom status if returned as tuple),
+        or 'failed' on exception.
+        Does not abort the orchestrator run on specialist failure.
+        """
+        allowed_perspectives = {"correctness", "security", "blast_radius"}
+        if perspective not in allowed_perspectives:
+            raise ValueError(
+                f"Perspective '{perspective}' is not a valid review perspective "
+                f"(must be one of {allowed_perspectives})."
+            )
+
+        state = self._get_state()
+        if state["finalized"]:
+            raise RuntimeError("Cannot run specialist after ID finalization.")
+        
+        try:
+            import inspect
+            if inspect.iscoroutinefunction(specialist_func):
+                result = await specialist_func()
+            else:
+                result = specialist_func()
+                if inspect.iscoroutine(result):
+                    result = await result
+
             if isinstance(result, tuple):
                 if len(result) != 3:
                     raise ValueError(

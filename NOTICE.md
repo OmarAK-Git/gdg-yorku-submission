@@ -13,5 +13,5 @@ All Git history in this repository starts ≥ 2026-06-17, conforming to the case
 | Redaction Context | None | Planned | MIT / GDG YorkU Team | *Planned* | Salted hash and placeholder logic. |
 | Correctness Adapter | None | Planned | MIT / GDG YorkU Team | *Planned* | Grounding adapter for Gemini correctness validation. |
 | Deterministic AST security | None | Planned | MIT / GDG YorkU Team | *Planned* | Custom Python AST rules (SQLi, deserialization, etc.) |
-| Debate Loop | Crucible | Planned (Adapted) | MIT | *Planned* | Ported adversarial defender/challenger loop structure. |
+| Debate Loop | Crucible | Adapted | MIT | 2026-06-22 | Adapted Crucible debate loop, stop conditions, Gemini defender (usability) and Claude challenger (security) personas and adapter wiring. |
 | Coordinator & Validator | None | Planned | MIT / GDG YorkU Team | *Planned* | Validation invariants and terminal report fallback. |
