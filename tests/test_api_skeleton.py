@@ -212,3 +212,60 @@ def test_review_upload_with_secrets():
     # Verify accounting ledger has both included active findings + stub correctness (total 2 findings)
     assert len(report["accounting_ledger"]["included"]) == 2
 
+
+def test_review_upload_coordinated_success(monkeypatch):
+    fake_correctness = [
+        {
+            "id": "prov-correctness-coordinated-1",
+            "source_agent": "correctness_agent",
+            "perspective": "correctness",
+            "severity": "high",
+            "location": {
+                "path": "src/app.py",
+                "line_start": 1,
+                "line_end": 2
+            },
+            "claim": "Explicit injected correctness finding.",
+            "evidence_ref": ["file:SPEC.md#1-2"]
+        }
+    ]
+
+    def mock_generate(self, orch, prompt, response_schema=None, **kwargs):
+        if kwargs.get("component") == "coordinator":
+            # For coordinator, return a valid CoordinatorOutput mapping recommended actions
+            state = orch.read_state()
+            findings = state.get("findings", [])
+            recommended = {}
+            for f in findings:
+                recommended[f.id] = f"Recommended action for {f.id}"
+            coord_out = {
+                "merges": [],
+                "omissions": [],
+                "recommended_actions": recommended
+            }
+            return json.dumps(coord_out)
+        else:
+            return json.dumps(fake_correctness)
+
+    monkeypatch.setattr(
+        "gdg_yorku_submission.llm.gemini.GeminiClient.generate_content",
+        mock_generate
+    )
+
+    zip_bytes = create_tiny_zip()
+    files = {"file": ("test.zip", zip_bytes, "application/zip")}
+    
+    response = client.post("/review", files=files, params={"orchestrator": "in_process"})
+    assert response.status_code == 200
+    
+    report = response.json()
+    assert "run_metadata" in report
+    assert report["run_metadata"]["orchestrator_type"] == "InProcessOrchestrator"
+    assert report["run_metadata"]["compilation_mode"] == "coordinated"
+    
+    # Correctness finding + deterministic AST security finding (none, wait, create_tiny_zip has hello.py, SPEC.md, src/app.py, but no AST violations since src/app.py is empty of violations).
+    # Correctness finding should be 1.
+    assert len(report["findings"]) == 1
+    assert report["findings"][0]["claim"] == "Explicit injected correctness finding."
+
+

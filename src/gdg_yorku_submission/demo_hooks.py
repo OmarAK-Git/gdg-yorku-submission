@@ -238,8 +238,10 @@ def run_demo(action: str, zip_path: Path) -> int:
             return 1
 
         print("\n=== PASS: REDACTION INVARIANT VALIDATED ===")
-        print("Raw secret was found in the source file original text.")
-        print("Raw secret was NOT found in the source file redacted text.")
+        if result.source_file_original:
+            print("Raw secret was found in the source file original text.")
+        if result.source_file_redacted:
+            print("Raw secret was NOT found in the source file redacted text.")
         print("Raw secret was NOT found in the final compiled report JSON.")
         print(f"Salted fingerprint '{secret_fingerprint}' is present in the report JSON.")
         print("============================================\n")

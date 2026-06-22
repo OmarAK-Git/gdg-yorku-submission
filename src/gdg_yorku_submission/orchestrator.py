@@ -350,8 +350,7 @@ class Orchestrator(abc.ABC):
             contested=[rf.id for rf in contested_findings]
         )
         
-        from gdg_yorku_submission.coordinator.validator import remediate_contested_kcap, build_review_report
-        contested_findings, ledger = remediate_contested_kcap(contested_findings, ledger)
+        from gdg_yorku_submission.coordinator.validator import build_review_report
         
         statuses = list(state["perspective_statuses"].values())
         
@@ -376,6 +375,13 @@ class Orchestrator(abc.ABC):
         except Exception as e:
             logger.error(f"CRITICAL: Validator crashed during terminal fallback report validation: {e}", exc_info=True)
             report.validator_warnings.append(f"Validator internal crash: {e}")
+            
+        # Central RedactionContext sweep at the HTTP and output boundary (defense-in-depth sanitization of warnings)
+        redaction_ctx = self.get_redaction_context()
+        if redaction_ctx:
+            report.validator_warnings = [
+                redaction_ctx.redact(w) for w in report.validator_warnings
+            ]
             
         return report
 
@@ -441,6 +447,13 @@ class Orchestrator(abc.ABC):
         except Exception as e:
             logger.error(f"CRITICAL: Validator crashed during coordinated report validation: {e}", exc_info=True)
             return self.compile_terminal_report(fallback_warnings=[f"Validator internal crash: {e}"])
+            
+        # Central RedactionContext sweep at the HTTP and output boundary (defense-in-depth sanitization of warnings)
+        redaction_ctx = self.get_redaction_context()
+        if redaction_ctx:
+            report.validator_warnings = [
+                redaction_ctx.redact(w) for w in report.validator_warnings
+            ]
             
         return report
 

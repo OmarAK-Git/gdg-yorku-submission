@@ -537,3 +537,42 @@ def test_parse_discriminator_for_sorting_negative_and_floats():
     assert d_float15 < d_pos20
     assert d_pos20 < d_str
 
+
+def test_distinct_colocated_findings_with_different_nonprose_keys():
+    loc = Location(path="src/app.py", line_start=10, line_end=10)
+    
+    # f1 and f2 are co-located deterministic findings of the same category,
+    # but have DIFFERENT token_offsets (10 vs 20).
+    f1 = Finding(
+        id="prov1",
+        source_agent="security_deterministic",
+        perspective="security",
+        severity=Severity.HIGH,
+        location=loc,
+        claim="SQL Injection at input validation",
+        metadata={"sub_rule": "sqli", "token_offset": 10}
+    )
+    
+    f2 = Finding(
+        id="prov2",
+        source_agent="security_deterministic",
+        perspective="security",
+        severity=Severity.HIGH,
+        location=loc,
+        claim="SQL Injection at DB execute",
+        metadata={"sub_rule": "sqli", "token_offset": 20}
+    )
+    
+    finalized, id_map = finalize_finding_ids([f1, f2])
+    
+    # They MUST survive as two distinct findings with different stable IDs and unique ordinals
+    assert len(finalized) == 2
+    assert finalized[0].id != finalized[1].id
+    assert finalized[0].metadata.get("token_offset") == 10
+    assert finalized[1].metadata.get("token_offset") == 20
+    
+    # Each provisional ID maps to exactly 1 finalized ID
+    p_ids = [map_val[0] for map_val in id_map.values()]
+    assert set(p_ids) == {"prov1", "prov2"}
+
+

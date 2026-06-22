@@ -43,30 +43,59 @@ def acquire_budget_lease(orch, lease: BudgetLease) -> None:
     else:
         projected_cost = 0.0
 
-    if budget.used_cost_usd + projected_cost > budget.max_cost_usd:
+    # Reservation for coordinator compiler (R7)
+    reserve_llm_calls = 1
+    reserve_tokens = 4000
+    reserve_cost_usd = 0.005
+
+    # Scale down reservations if the configured limits are smaller than the reserve
+    if budget.max_llm_calls <= reserve_llm_calls:
+        reserve_llm_calls = 0
+    if budget.max_total_tokens <= reserve_tokens:
+        reserve_tokens = 0
+    if budget.max_gemini_tokens <= reserve_tokens:
+        reserve_tokens = 0
+    if budget.max_cost_usd <= reserve_cost_usd:
+        reserve_cost_usd = 0.0
+
+    # Determine projected usage including coordinator reservation if not coordinator
+    check_llm_calls = budget.used_llm_calls + 1
+    check_total_tokens = budget.used_total_tokens + lease.estimated_tokens
+    check_gemini_tokens = budget.used_gemini_tokens + (lease.estimated_tokens if lease.provider == "gemini" else 0)
+    check_cost = budget.used_cost_usd + projected_cost
+
+    if lease.component != "coordinator":
+        check_llm_calls += reserve_llm_calls
+        check_total_tokens += reserve_tokens
+        # Coordinator always uses Gemini
+        check_gemini_tokens += reserve_tokens
+        check_cost += reserve_cost_usd
+
+    if check_cost > budget.max_cost_usd:
         raise BudgetExhaustedError(
             f"Budget exceeded: projected cost would exceed max_cost_usd cap "
-            f"({budget.used_cost_usd + projected_cost:.6f} > {budget.max_cost_usd})"
+            f"({check_cost:.6f} > {budget.max_cost_usd})"
         )
 
-    if budget.used_llm_calls + 1 > budget.max_llm_calls:
+    if check_llm_calls > budget.max_llm_calls:
         raise BudgetExhaustedError(
-            f"Budget exceeded: maximum LLM calls cap reached ({budget.max_llm_calls})"
+            f"Budget exceeded: maximum LLM calls cap reached ({check_llm_calls} > {budget.max_llm_calls})"
         )
         
-    if budget.used_total_tokens + lease.estimated_tokens > budget.max_total_tokens:
+    if check_total_tokens > budget.max_total_tokens:
         raise BudgetExhaustedError(
             f"Budget exceeded: estimated tokens would exceed max_total_tokens cap "
-            f"({budget.used_total_tokens + lease.estimated_tokens} > {budget.max_total_tokens})"
+            f"({check_total_tokens} > {budget.max_total_tokens})"
         )
         
-    if lease.provider == "gemini":
-        if budget.used_gemini_tokens + lease.estimated_tokens > budget.max_gemini_tokens:
+    if lease.provider == "gemini" or lease.component != "coordinator":
+        if check_gemini_tokens > budget.max_gemini_tokens:
             raise BudgetExhaustedError(
                 f"Budget exceeded: estimated tokens would exceed max_gemini_tokens cap "
-                f"({budget.used_gemini_tokens + lease.estimated_tokens} > {budget.max_gemini_tokens})"
+                f"({check_gemini_tokens} > {budget.max_gemini_tokens})"
             )
-    elif lease.provider == "claude":
+    
+    if lease.provider == "claude":
         if budget.used_claude_tokens + lease.estimated_tokens > budget.max_claude_tokens:
             raise BudgetExhaustedError(
                 f"Budget exceeded: estimated tokens would exceed max_claude_tokens cap "
