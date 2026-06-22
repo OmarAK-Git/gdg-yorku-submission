@@ -1,0 +1,34 @@
+{
+  "run": "task-19",
+  "status": "completed",
+  "current_task": null,
+  "blocked": false,
+  "blockers": [],
+  "last_updated": "2026-06-22",
+  "tasks": [
+    {
+      "id": "TASK-19-1",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Implemented Pydantic schemas in debate_schema.py"
+    },
+    {
+      "id": "TASK-19-2",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Exported debate schemas in security/__init__.py"
+    },
+    {
+      "id": "TASK-19-3",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Wrote comprehensive unit tests in tests/test_debate_schema.py"
+    },
+    {
+      "id": "TASK-19-4",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Ran tests and finalized all workflow metadata documents"
+    }
+  ]
+}
