@@ -689,3 +689,137 @@ async def test_agent_high_only_notice_kcap(monkeypatch):
     assert "Baseline warning" in reason
     assert status == "complete_limited"
 
+
+# 16. Secret registered in corpus must NOT appear in debate prompt input
+@pytest.mark.anyio
+async def test_no_raw_secret_in_debate_prompt(monkeypatch):
+    # Setup orchestrator, redaction context, and corpus with a secret
+    orch = MockOrchestrator()
+    secret = "AKIA1234567890123456"
+    placeholder = orch.get_redaction_context().register_secret(secret, "AWS Access Key ID")
+    
+    # Pre-redact corpus file as expected by build_evidence_plane precondition
+    original_text = f"AWS_KEY = '{secret}'\n"
+    redacted_text = orch.get_redaction_context().redact(original_text)
+    
+    # Assert redaction actually did its job in the text
+    assert secret not in redacted_text
+    assert placeholder in redacted_text
+    
+    from gdg_yorku_submission.schemas import CorpusFile
+    corpus_file = CorpusFile(
+        normalized_path="src/config.py",
+        original_text=original_text,
+        redacted_text=redacted_text,
+        original_line_count=1,
+        redacted_to_original_line_map={1: 1},
+        evidence_ref="file:src/config.py",
+        exposure_status="prompt_exposed",
+        ingest_status="success",
+        redaction_applied=True
+    )
+    orch.state["corpus"] = {"src/config.py": corpus_file}
+    
+    captured_user_contents = []
+    
+    async def mock_call_gemini(orch_obj, system_prompt, user_content, response_model, model=None):
+        captured_user_contents.append(user_content)
+        from gdg_yorku_submission.security.debate_schema import AdversaryResponse
+        return AdversaryResponse(
+            proposals=[],
+            questions_for_human=[]
+        )
+        
+    monkeypatch.setattr(
+        "gdg_yorku_submission.security.debate.call_gemini_adversary",
+        mock_call_gemini
+    )
+    
+    # Run the debate loop
+    await run_debate_loop(
+        orch=orch,
+        findings=[],
+        max_rounds=1
+    )
+    
+    # Verify the captured user content (the prompt input)
+    assert len(captured_user_contents) > 0
+    for prompt_input in captured_user_contents:
+        assert secret not in prompt_input
+        assert placeholder in prompt_input
+
+
+# 17. Mid-debate failure / BudgetExhaustedError falls back to AST baseline
+def test_http_debate_fallback_on_failure(monkeypatch, caplog):
+    import logging
+    caplog.set_level(logging.WARNING)
+
+    monkeypatch.setenv("ENABLE_SECURITY_DEBATE", "true")
+    
+    # Mock correctness agent to return empty list
+    def fake_correctness(*args, **kwargs):
+        return []
+    monkeypatch.setattr("gdg_yorku_submission.correctness.agent.make_correctness_specialist", lambda orch: fake_correctness)
+    
+    # Mock deterministic baseline to return one high finding (Task 11 baseline)
+    from gdg_yorku_submission.schemas import ReviewFinding
+    def fake_security_baseline():
+        return [
+            ReviewFinding(
+                id="sec-ast-1",
+                source_agent="security_deterministic",
+                perspective="security",
+                severity=Severity.HIGH,
+                location=Location(path="src/app.py", line_start=1, line_end=2),
+                claim="Potential SQL injection in execute call.",
+                evidence_ref=["file:src/app.py#1-2"],
+                status="active"
+            )
+        ], "complete", "Baseline warning"
+    monkeypatch.setattr("gdg_yorku_submission.security.agent.make_deterministic_specialist", lambda orch: fake_security_baseline)
+    
+    # Mock run_debate_loop to raise BudgetExhaustedError (representing mid-debate failure)
+    async def mock_run_debate_loop_raise(*args, **kwargs):
+        raise BudgetExhaustedError("Budget exhausted mid-debate")
+    monkeypatch.setattr("gdg_yorku_submission.security.debate.run_debate_loop", mock_run_debate_loop_raise)
+    
+    # Create zip
+    import io
+    import zipfile
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("src/app.py", "db.execute(query)\n# line 2\n")
+    zip_bytes = buf.getvalue()
+    
+    from fastapi.testclient import TestClient
+    from gdg_yorku_submission.app import app
+    
+    client = TestClient(app)
+    files = {"file": ("test.zip", zip_bytes, "application/zip")}
+    response = client.post("/review", files=files, params={"orchestrator": "in_process"})
+    
+    assert response.status_code == 200
+    report = response.json()
+    
+    # Verify the fallback happened and report completed successfully
+    statuses = {ps["perspective"]: ps for ps in report["perspective_statuses"]}
+    assert statuses["security"]["status"] in ("complete", "complete_limited")
+    
+    # Assert coordinated path produced the report (no terminal fallback)
+    assert report["run_metadata"]["compilation_mode"] != "terminal_fallback"
+    
+    # Assert that fallback warning was logged
+    log_text = "\n".join(record.message for record in caplog.records)
+    assert "debate loop failed" in log_text.lower()
+    assert "budgetexhaustederror" in log_text.lower()
+    assert "falling back to ast baseline" in log_text.lower()
+    
+    # Assert that the findings list contains the baseline finding by checking its claim
+    found_baseline = False
+    for finding in report["findings"]:
+        if finding["claim"] == "Potential SQL injection in execute call.":
+            found_baseline = True
+    assert found_baseline, "Baseline finding not found in fallback report findings"
+
+
+

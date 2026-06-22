@@ -1,0 +1,22 @@
+{
+  "run": "task-21",
+  "status": "completed",
+  "current_task": null,
+  "blocked": false,
+  "blockers": [],
+  "last_updated": "2026-06-22",
+  "tasks": [
+    {
+      "id": "TASK-21-01",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Added test_no_raw_secret_in_debate_prompt in test_debate_loop.py"
+    },
+    {
+      "id": "TASK-21-02",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Added test_http_debate_fallback_on_failure in test_debate_loop.py"
+    }
+  ]
+}
