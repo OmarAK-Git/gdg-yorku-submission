@@ -1,0 +1,40 @@
+{
+  "run": "task-22",
+  "status": "completed",
+  "current_task": null,
+  "blocked": false,
+  "blockers": [],
+  "last_updated": "2026-06-22",
+  "tasks": [
+    {
+      "id": "TASK-22-01",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Added urllib.parse and verified production HTTP paths with urllib.request.urlopen mock."
+    },
+    {
+      "id": "TASK-22-02",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Capped blast-radius finding severities at MEDIUM to prevent floor flooding."
+    },
+    {
+      "id": "TASK-22-03",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Implemented symbol deduplication, caching, count cap (20), and wall-clock query budget (2.0s)."
+    },
+    {
+      "id": "TASK-22-04",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Integrated cf.map_line() coordinates mapping with out-of-bounds skipping and verification tests."
+    },
+    {
+      "id": "TASK-22-05",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Added claims/duplicate improvements, coordinator merge/omission tests, and determinism locks."
+    }
+  ]
+}

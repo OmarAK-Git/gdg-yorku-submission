@@ -2,7 +2,7 @@
 
 ## Project Status
 - **Phase**: Sprint 5: Coordination & Validation (Demo prep)
-- **Overall Completion**: 80.8% (21 / 26 tasks complete)
+- **Overall Completion**: 84.6% (22 / 26 tasks complete)
 
 ## Completed Tasks
 - [x] Task 1: Fresh Repo Baseline + Provenance Guard
@@ -26,13 +26,17 @@
 - [x] Task 19: Debate Data Model
 - [x] Task 20: Port Crucible Debate Loop
 - [x] Task 21: Security Debate Adapter
+- [x] Task 22: Optional Orbit Blast-Radius
 - [x] Sprint 2 Gate Review Fixes (Task 7 context threading, Task 8 pre-conditions, state preservation, precise virtualenv skips, descope documentation, and HTTP E2E tests)
 
 ## In Progress Tasks
 *None*
 
 ## Upcoming Tasks (Sprint 5 & Close-Out)
-*None* (Ready for upgrades or close-out phase)
+- [ ] Task 23: End-to-End Tests
+- [ ] Task 24: Real-LLM Smoke Script
+- [ ] Task 25: README + Writeup + Provenance
+- [ ] Task 26: Evidence + Recording Prep
 
 ## Gaps, Issues, and Risks
 - **Google ADK integration**: High dependency risk. Mitigated by Orchestrator abstraction seam allowing a plain Python fallback.

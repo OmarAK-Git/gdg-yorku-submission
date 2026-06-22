@@ -96,8 +96,11 @@ async def review_upload(
         # 4. Run specialists
         from gdg_yorku_submission.security import make_security_specialist
         from gdg_yorku_submission.correctness.agent import make_correctness_specialist
+        from gdg_yorku_submission.blast_radius import make_blast_radius_specialist
+        
         orch.run_specialist("correctness", make_correctness_specialist(orch))
         await orch.run_specialist_async("security", make_security_specialist(orch))
+        orch.run_specialist("blast_radius", make_blast_radius_specialist(orch))
 
         # 5. Compile and return report
         try:

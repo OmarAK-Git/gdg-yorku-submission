@@ -98,7 +98,7 @@ This file tracks the status, dependencies, and references for all implementation
   - **Description**: Integrate debate loop with Claude/Gemini, with baseline fallback on failure.
   - **Dependencies**: Tasks 7, 8, 20
   - **References**: [R7]
-- [ ] **Task 22 — Optional Orbit Blast-Radius**
+- [x] **Task 22 — Optional Orbit Blast-Radius**
   - **Description**: Impact analysis via GitLab Knowledge Graph; fails safe if unconfigured.
   - **Dependencies**: Task 2
 

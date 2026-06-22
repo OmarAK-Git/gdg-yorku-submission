@@ -1,0 +1,9 @@
+# Traceability Matrix - Task 22 Revisions
+
+| Req | AC | Decision | Task | Code/Diff | Test/Check | Review | Status |
+|---|---|---|---|---|---|---|---|
+| REQ-22-R1 | AC-22-01 | DEC-22-01 | TASK-22-01 | [orbit_client.py](file:///c:/Users/oalan/gdg-yorku-submission/src/gdg_yorku_submission/blast_radius/orbit_client.py#L123-L162) | `test_orbit_client_query_symbol_real_http` in [test_blast_radius.py](file:///c:/Users/oalan/gdg-yorku-submission/tests/test_blast_radius.py) | Verified | completed |
+| REQ-22-R2 | AC-22-02 | DEC-22-02 | TASK-22-02 | [agent.py](file:///c:/Users/oalan/gdg-yorku-submission/src/gdg_yorku_submission/blast_radius/agent.py#L173-L179) | `test_agent_severity_cap` in [test_blast_radius.py](file:///c:/Users/oalan/gdg-yorku-submission/tests/test_blast_radius.py) | Verified | completed |
+| REQ-22-R3 | AC-22-03 | DEC-22-03 | TASK-22-03 | [agent.py](file:///c:/Users/oalan/gdg-yorku-submission/src/gdg_yorku_submission/blast_radius/agent.py#L104-L121) | `tests/test_blast_radius.py` (caching/timeouts) | Verified | completed |
+| REQ-22-R4 | AC-22-04 | DEC-22-04 | TASK-22-04 | [agent.py](file:///c:/Users/oalan/gdg-yorku-submission/src/gdg_yorku_submission/blast_radius/agent.py#L182-L192) | `test_agent_non_identity_line_map`, `test_agent_out_of_bounds_skipping` in [test_blast_radius.py](file:///c:/Users/oalan/gdg-yorku-submission/tests/test_blast_radius.py) | Verified | completed |
+| REQ-22-R5 | AC-22-05 | DEC-22-05 | TASK-22-05 | [agent.py](file:///c:/Users/oalan/gdg-yorku-submission/src/gdg_yorku_submission/blast_radius/agent.py#L137-L151) | `test_blast_coordinator_merge_and_omission`, `test_agent_determinism`, `test_duplicate_symbol_line_deduplication` in [test_blast_radius.py](file:///c:/Users/oalan/gdg-yorku-submission/tests/test_blast_radius.py) | Verified | completed |

@@ -14,7 +14,8 @@
 - Task 18 (Out-of-Band Validator-Rejection Demo Hook) and Task 19 (Debate Data Model schemas) are completed and verified.
 
 ## Active Focus
-- Preparing for close-out and E2E demo scripts. Tasks 20 and 21 are fully completed.
+- Completed Task 22: Optional Orbit blast-radius specialist/agent.
+- Preparing for Sprint 5 Close-Out: E2E Integration tests and documentation.
 
 ## Deferred Constraints (from Sprint 3 Gate)
 - **Tag for Task 13–14**: The correctness agent discards `sot_result.sot_text` and feeds the full file into the evidence plane, bypassing the README heading-allowlist. For the validator's evidence-existence check, we validate against the full loaded corpus file line count. This has been implemented successfully in Task 14.
@@ -22,5 +23,6 @@
 
 
 ## Next Steps
-1. Wire optional Orbit Blast-Radius (Task 22).
-2. End-to-end integration tests and close-out documentation (Tasks 23-26).
+1. End-to-end integration tests (Task 23).
+2. Live LLM / real API smoke scripts (Task 24).
+3. README setup writeup, demo recording, and provenance checklist (Tasks 25-26).
