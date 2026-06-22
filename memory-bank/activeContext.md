@@ -13,13 +13,12 @@
 - Task 15 (Bounded Regeneration + Deterministic Terminal Report) is completed and verified, implementing validator retry feedback loops and zero-LLM fallbacks.
 
 ## Active Focus
-- **Task 17 — Frontend Report Viewer**: Renders HTML/JS view for review findings, statuses, ledger, and secret summary.
+- **Task 18 — Out-of-Band Validator-Rejection Demo Hook**: CLI demo script showing validation failure on manually corrupted report, isolated from HTTP path.
 
 ## Deferred Constraints (from Sprint 3 Gate)
 - **Tag for Task 13–14**: The correctness agent discards `sot_result.sot_text` and feeds the full file into the evidence plane, bypassing the README heading-allowlist. For the validator's evidence-existence check, we validate against the full loaded corpus file line count. This has been implemented successfully in Task 14.
 - **Tag for Task 16/24**: Correctness grounding and coordinate boundaries validation have been verified E2E via the demo sample tests; actual LLM correctness detection is deferred to Task 24.
 
 ## Next Steps
-1. Build and verify the frontend components under `src/gdg_yorku_submission/static/` to render review findings, ledger, and status views.
-2. Integrate the frontend view route with FastAPI backend.
+1. Build and verify the out-of-band validator-rejection hook CLI under `src/gdg_yorku_submission/demo_hooks.py`.
 

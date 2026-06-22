@@ -1,7 +1,10 @@
 import io
+import os
 import zipfile
 from typing import List
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
 from gdg_yorku_submission.schemas import (
     ReviewReport,
     ReviewFinding,
@@ -18,12 +21,19 @@ app = FastAPI(
     version="0.1.0"
 )
 
-
+current_dir = os.path.dirname(os.path.abspath(__file__))
+static_dir = os.path.join(current_dir, "static")
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 
 @app.get("/")
 def read_root():
     return {"status": "running", "app": "GDG-YorkU Code Review Tool"}
+
+
+@app.get("/ui")
+async def redirect_to_ui():
+    return RedirectResponse(url="/static/index.html")
 
 
 @app.post("/review", response_model=ReviewReport)
@@ -50,7 +60,11 @@ async def review_upload(
             corpus_summary = {
                 "file_count": manifest.total_extracted_count,
                 "total_bytes": manifest.total_extracted_bytes,
-                "skipped_files": len(manifest.skipped_files)
+                "skipped_files": len(manifest.skipped_files),
+                "skipped_log": {
+                    k: {"skipped_reason": v.skipped_reason}
+                    for k, v in manifest.skipped_files.items()
+                }
             }
         except IngestionError as e:
             raise HTTPException(

@@ -77,7 +77,7 @@ This file tracks the status, dependencies, and references for all implementation
 - [x] **Task 16 — Pinned Demo Sample**
   - **Description**: Build and verify demo repo `samples/driftstore` to trigger required review findings.
   - **Dependencies**: Tasks 5, 6, 7, 8, 9, 11
-- [ ] **Task 17 — Frontend Report Viewer**
+- [x] **Task 17 — Frontend Report Viewer**
   - **Description**: Renders HTML/JS view for review findings, statuses, ledger, and secret summary.
   - **Dependencies**: Tasks 4, 14
   - **References**: [R4]

@@ -87,7 +87,28 @@ def build_review_report(
     Constructs the ReviewReport object consistently from the compiled findings and ledger state.
     """
     from gdg_yorku_submission.severity import is_at_or_above_floor
+    import datetime
     
+    start_time_str = state.get("start_time")
+    duration_ms = None
+    if start_time_str:
+        try:
+            start_time = datetime.datetime.fromisoformat(start_time_str)
+            duration_ms = int((datetime.datetime.now(datetime.timezone.utc) - start_time).total_seconds() * 1000)
+        except Exception:
+            pass
+
+    budget_dict = state.get("budget")
+    budget_remaining = "Unconstrained"
+    if budget_dict:
+        try:
+            from gdg_yorku_submission.budget import RunBudget
+            b = RunBudget(**budget_dict)
+            pct = max(0.0, (b.max_total_tokens - b.used_total_tokens) / b.max_total_tokens * 100)
+            budget_remaining = f"{pct:.1f}% token allocation"
+        except Exception:
+            pass
+            
     severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
     for rf in findings:
         severity_counts[rf.severity.value] = severity_counts.get(rf.severity.value, 0) + 1
@@ -102,7 +123,10 @@ def build_review_report(
             **state.get("run_metadata", {}),
             "run_id": orch.run_id,
             "orchestrator_type": orch.__class__.__name__,
-            "compilation_mode": compilation_mode
+            "compilation_mode": compilation_mode,
+            "start_time": start_time_str,
+            "duration_ms": duration_ms,
+            "budget_remaining": budget_remaining
         },
         corpus_summary=state.get("corpus_summary", {"file_count": 0, "total_bytes": 0}),
         perspective_statuses=statuses,

@@ -278,6 +278,23 @@ def test_extra_fields_forbidden():
             extra_field="forbidden"  # type: ignore
         )
 
+    # Test GateFinding rejects extra fields (e.g. raw secret values)
+    with pytest.raises(ValidationError):
+        GateFinding(
+            id="gate_f",
+            severity=Severity.CRITICAL,
+            location=loc,
+            claim="Exposed AWS secret",
+            secret_type="AWS Key",
+            fingerprint="saltedhash123",
+            exposure_status="prompt_exposed",
+            raw_value="secret_key_leak_here"  # type: ignore
+        )
+    assert "raw_value" not in GateFinding.model_fields
+    assert "raw-value" not in GateFinding.model_fields
+    assert "original_value" not in GateFinding.model_fields
+
+
 def test_required_report_fields():
     # Omit gate_status
     ledger = AccountingLedger(included=[], merged=[], omitted=[])

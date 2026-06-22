@@ -1,0 +1,40 @@
+{
+  "run": "task-17",
+  "status": "completed",
+  "current_task": null,
+  "blocked": false,
+  "blockers": [],
+  "last_updated": "2026-06-21",
+  "tasks": [
+    {
+      "id": "TASK-17-1",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Create index.html"
+    },
+    {
+      "id": "TASK-17-2",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Create styles.css"
+    },
+    {
+      "id": "TASK-17-3",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Create app.js"
+    },
+    {
+      "id": "TASK-17-4",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Modify app.py to mount static directory"
+    },
+    {
+      "id": "TASK-17-5",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Create test_frontend.py"
+    }
+  ]
+}

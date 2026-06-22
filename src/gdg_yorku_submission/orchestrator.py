@@ -38,8 +38,11 @@ class Orchestrator(abc.ABC):
         from gdg_yorku_submission.preflight.redaction import RedactionContext
         from gdg_yorku_submission.budget import RunBudget
         redaction_ctx = RedactionContext()
+        import datetime
+        start_time_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
         state = {
             "run_id": self.run_id,
+            "start_time": start_time_iso,
             "findings": [],
             "perspective_statuses": {},
             "gate_status": GateStatus(status="complete", reason=None, finding_ids=[]),

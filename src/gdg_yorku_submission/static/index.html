@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GDG-YorkU Code Review Dashboard - Visual report viewer for code review findings, perspective execution statuses, secret scan results, and conservation ledger.">
+  <title>GDG-YorkU Code Review Dashboard</title>
+  <!-- Google Fonts for premium developer typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Top App Navigation Header -->
+  <header class="app-header">
+    <div class="header-logo">
+      <div class="logo-icon"></div>
+      <div class="logo-text">
+        <h1>GDG-YorkU Code Review Tool</h1>
+        <span class="logo-subtext">Automated Multi-Agent Integrity Suite</span>
+      </div>
+    </div>
+    
+    <div class="header-actions">
+      <div class="select-wrapper">
+        <label for="orchestrator-select">Orchestrator Mode:</label>
+        <select id="orchestrator-select" class="custom-select">
+          <option value="adk">ADK Seam (In-Process Default)</option>
+          <option value="in_process">In-Process Orchestrator</option>
+        </select>
+      </div>
+      <button id="demo-load-btn" class="secondary-btn">Load Mock Demo Report</button>
+    </div>
+  </header>
+
+  <main class="app-container">
+    
+    <!-- Upload Dropzone Section -->
+    <section class="upload-section">
+      <div id="dropzone" class="upload-dropzone">
+        <input type="file" id="file-input" accept=".zip" class="hidden-file-input">
+        <div class="dropzone-content">
+          <div class="upload-icon"></div>
+          <h3>Upload Repository Archive</h3>
+          <p>Drag & drop a <code>.zip</code> file here or <span class="highlight-text">browse files</span></p>
+          <span class="upload-hint">Supported size: &le; 50MB (zip-bomb protected)</span>
+        </div>
+      </div>
+      <div id="upload-progress-container" class="progress-container hidden">
+        <div class="progress-bar">
+          <div id="progress-fill" class="progress-fill"></div>
+        </div>
+        <span id="progress-status-text" class="progress-status-text">Analyzing codebase components...</span>
+      </div>
+    </section>
+
+    <!-- Dashboard Content Area (initially hidden until report loaded) -->
+    <section id="dashboard-content" class="dashboard-grid hidden">
+      
+      <!-- Side Dashboard Column: Statistics & System Statuses -->
+      <aside class="sidebar-panel">
+        
+        <!-- Run Metadata -->
+        <div class="dashboard-card" id="card-run-meta">
+          <h2>Run Diagnostics</h2>
+          <div class="metadata-grid" id="meta-container">
+            <div class="meta-item"><span class="meta-label">Time:</span> <span id="meta-time" class="meta-value">-</span></div>
+            <div class="meta-item"><span class="meta-label">Type:</span> <span id="meta-type" class="meta-value">-</span></div>
+            <div class="meta-item"><span class="meta-label">Budget Remaining:</span> <span id="meta-budget" class="meta-value">-</span></div>
+          </div>
+        </div>
+
+        <!-- Corpus Summary Statistics -->
+        <div class="dashboard-card" id="card-corpus-summary">
+          <h2>Corpus Summary</h2>
+          <div class="summary-stats-grid">
+            <div class="stat-box">
+              <span class="stat-number" id="stat-file-count">0</span>
+              <span class="stat-label">Total Files</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-number" id="stat-total-bytes">0 KB</span>
+              <span class="stat-label">Uncompressed Size</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-number" id="stat-skipped-count">0</span>
+              <span class="stat-label">Skipped Entries</span>
+            </div>
+          </div>
+          <div id="skipped-files-list" class="skipped-files-list hidden">
+            <h3>Skipped Log:</h3>
+            <ul id="skipped-list-ul"></ul>
+          </div>
+        </div>
+
+        <!-- Perspective and Gate Statuses -->
+        <div class="dashboard-card" id="card-statuses">
+          <h2>Agent Perspectives</h2>
+          
+          <div class="status-indicator-group">
+            <div class="status-row" id="status-row-gate">
+              <span class="status-name">Pre-Flight Secret Scan:</span>
+              <span id="badge-gate-status" class="status-badge status-pending">Pending</span>
+            </div>
+            
+            <div class="status-row" id="status-row-correctness">
+              <span class="status-name">Correctness Agent:</span>
+              <span id="badge-correctness-status" class="status-badge status-pending">Pending</span>
+            </div>
+            
+            <div class="status-row" id="status-row-security">
+              <span class="status-name">Security/Assurance Node:</span>
+              <span id="badge-security-status" class="status-badge status-pending">Pending</span>
+            </div>
+            
+            <div class="status-row" id="status-row-blast-radius">
+              <span class="status-name">Blast-Radius Agent (Orbit):</span>
+              <span id="badge-blast-radius-status" class="status-badge status-pending">Pending</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Severity Counter Summary -->
+        <div class="dashboard-card" id="card-severities">
+          <h2>Severity Breakdown</h2>
+          <div class="severity-counts-container">
+            <div class="severity-stat critical" id="sev-stat-critical">
+              <span class="severity-dot critical-dot"></span>
+              <span class="severity-label">Critical</span>
+              <span class="severity-count" id="count-critical">0</span>
+            </div>
+            <div class="severity-stat high" id="sev-stat-high">
+              <span class="severity-dot high-dot"></span>
+              <span class="severity-label">High</span>
+              <span class="severity-count" id="count-high">0</span>
+            </div>
+            <div class="severity-stat medium" id="sev-stat-medium">
+              <span class="severity-dot medium-dot"></span>
+              <span class="severity-label">Medium</span>
+              <span class="severity-count" id="count-medium">0</span>
+            </div>
+            <div class="severity-stat low" id="sev-stat-low">
+              <span class="severity-dot low-dot"></span>
+              <span class="severity-label">Low</span>
+              <span class="severity-count" id="count-low">0</span>
+            </div>
+            <div class="severity-stat info" id="sev-stat-info">
+              <span class="severity-dot info-dot"></span>
+              <span class="severity-label">Info</span>
+              <span class="severity-count" id="count-info">0</span>
+            </div>
+          </div>
+        </div>
+
+      </aside>
+
+      <!-- Main Dashboard Panel: Tabbed Details & Interactive Viewers -->
+      <section class="main-panel">
+        
+        <!-- Tab Bar Control -->
+        <nav class="dashboard-tabs" role="tablist">
+          <button id="tab-all" class="tab-btn active" role="tab" aria-selected="true" aria-controls="panel-findings">
+            All Findings (<span id="tab-count-findings">0</span>)
+          </button>
+          <button id="tab-high" class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-findings">
+            Critical &amp; High (<span id="tab-count-high">0</span>)
+          </button>
+          <button id="tab-contested" class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-contested">
+            Contested (<span id="tab-count-contested">0</span>)
+          </button>
+          <button id="tab-secrets" class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-secrets">
+            Secret Summary (<span id="tab-count-secrets">0</span>)
+          </button>
+          <button id="tab-ledger" class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-ledger">
+            Ledger &amp; Conservation
+          </button>
+        </nav>
+
+        <!-- Tab Panel: Review Findings -->
+        <div id="panel-findings" class="tab-panel-content">
+          <div class="panel-header">
+            <h2>Active Code Review Findings</h2>
+            <div class="panel-filters">
+              <label for="filter-perspective">Perspective:</label>
+              <select id="filter-perspective" class="mini-select">
+                <option value="all">All Perspectives</option>
+                <option value="correctness">Correctness</option>
+                <option value="security">Security</option>
+              </select>
+            </div>
+          </div>
+          
+          <div id="validator-warning-banner" class="warning-banner hidden">
+            <span class="warning-icon"></span>
+            <div class="warning-text">
+              <strong>Validator Warnings:</strong>
+              <ul id="warnings-list-ul"></ul>
+            </div>
+          </div>
+
+          <div id="findings-list" class="findings-list-container">
+            <!-- Dynamic findings go here -->
+            <p class="placeholder-text">No findings matching the current filters.</p>
+          </div>
+        </div>
+
+        <!-- Tab Panel: Contested Items -->
+        <div id="panel-contested" class="tab-panel-content hidden">
+          <h2>Contested Debate Submissions</h2>
+          <p class="panel-desc">These items were flagged by the security challenger but successfully defended or remain unresolved. They are tracked separately in the ledger.</p>
+          <div id="contested-list" class="findings-list-container">
+            <!-- Dynamic contested items go here -->
+            <p class="placeholder-text">No contested items in this report.</p>
+          </div>
+        </div>
+
+        <!-- Tab Panel: Secrets Summary -->
+        <div id="panel-secrets" class="tab-panel-content hidden">
+          <h2>Pre-Flight Secret Scan Ledger</h2>
+          <p class="panel-desc">All API keys, cryptographic credentials, and token structures discovered across the entire zip file (including gitignored files). Crucially, raw values are redacted and never leaked to the models.</p>
+          <div class="table-wrapper">
+            <table class="dashboard-table" id="secrets-table">
+              <thead>
+                <tr>
+                  <th>Secret Type</th>
+                  <th>Location</th>
+                  <th>Severity</th>
+                  <th>Exposure State</th>
+                  <th>Salted Hash Fingerprint</th>
+                </tr>
+              </thead>
+              <tbody id="secrets-table-body">
+                <!-- Dynamic secrets go here -->
+                <tr>
+                  <td colspan="5" class="table-placeholder">No secrets detected in the codebase.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Tab Panel: Accounting Ledger & Conservation -->
+        <div id="panel-ledger" class="tab-panel-content hidden">
+          <h2>Integrity Conservation Ledger</h2>
+          <div class="ledger-header-status" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem;">
+            <p class="panel-desc" style="margin-bottom: 0; max-width: 80%;">Matches incoming specialist findings to final outputs. Every provisional ID must be accounted for by the compiler. Integrity check satisfies R4: <code>Inputs &equiv; Included &cup; Merged &cup; Omitted &cup; Contested</code> (enforced by validator).</p>
+            <div id="ledger-check-badge" class="status-badge status-complete">Verified PASS</div>
+          </div>
+          
+          <div class="ledger-summary-grid">
+            <div class="ledger-card included">
+              <h3>Included Verbatim</h3>
+              <span class="ledger-number" id="ledger-count-included">0</span>
+              <p>Specialist findings carried forward directly to final report.</p>
+              <ul id="ledger-list-included" class="ledger-id-list"></ul>
+            </div>
+
+            <div class="ledger-card merged">
+              <h3>Merged / Consolidated</h3>
+              <span class="ledger-number" id="ledger-count-merged">0</span>
+              <p>constituent inputs consolidated by the compiler to prevent redundant alert fatigue.</p>
+              <ul id="ledger-list-merged" class="ledger-id-list"></ul>
+            </div>
+
+            <div class="ledger-card omitted">
+              <h3>Omitted / Suppressed</h3>
+              <span class="ledger-number" id="ledger-count-omitted">0</span>
+              <p>findings discarded due to low severity filters or validation rules.</p>
+              <ul id="ledger-list-omitted" class="ledger-id-list"></ul>
+            </div>
+
+            <div class="ledger-card contested">
+              <h3>Contested</h3>
+              <span class="ledger-number" id="ledger-count-contested">0</span>
+              <p>Flagged by challenger but excluded from active list via defense or caps.</p>
+              <ul id="ledger-list-contested" class="ledger-id-list"></ul>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+    </section>
+
+  </main>
+
+  <footer class="app-footer">
+    <div class="footer-content">
+      <span>GDG YorkU Case Competition Submission</span>
+      <span class="separator">&bull;</span>
+      <span>In-Window Baseline Verification Active</span>
+    </div>
+  </footer>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>

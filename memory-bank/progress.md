@@ -2,7 +2,7 @@
 
 ## Project Status
 - **Phase**: Sprint 5: Coordination & Validation (Demo prep)
-- **Overall Completion**: 61.5% (16 / 26 tasks complete)
+- **Overall Completion**: 65.4% (17 / 26 tasks complete)
 
 ## Completed Tasks
 - [x] Task 1: Fresh Repo Baseline + Provenance Guard
@@ -21,13 +21,13 @@
 - [x] Task 14: Conservation Validator
 - [x] Task 15: Bounded Regeneration + Deterministic Terminal Report
 - [x] Task 16: Pinned Demo Sample
+- [x] Task 17: Frontend Report Viewer
 - [x] Sprint 2 Gate Review Fixes (Task 7 context threading, Task 8 pre-conditions, state preservation, precise virtualenv skips, descope documentation, and HTTP E2E tests)
 
 ## In Progress Tasks
 *None*
 
 ## Upcoming Tasks (Sprint 5 & Close-Out)
-- [ ] Task 17: Frontend Report Viewer
 - [ ] Task 18: Out-of-Band Validator-Rejection Demo Hook
 
 ## Gaps, Issues, and Risks

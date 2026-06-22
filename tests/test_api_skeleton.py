@@ -65,6 +65,19 @@ def test_review_upload_happy_path_adk(monkeypatch):
     assert "security" in statuses
     assert statuses["security"]["status"] == "complete"
 
+    # Verify backend telemetry and skipped logs threading contract
+    assert "start_time" in report["run_metadata"]
+    assert report["run_metadata"]["start_time"] is not None
+    assert "duration_ms" in report["run_metadata"]
+    assert isinstance(report["run_metadata"]["duration_ms"], int)
+    assert report["run_metadata"]["budget_remaining"] == "100.0% token allocation"
+    
+    assert "skipped_log" in report["corpus_summary"]
+    assert isinstance(report["corpus_summary"]["skipped_log"], dict)
+    assert "/etc/passwd" in report["corpus_summary"]["skipped_log"]
+    reason = report["corpus_summary"]["skipped_log"]["/etc/passwd"]["skipped_reason"].lower()
+    assert any(term in reason for term in ["absolute", "traversal"])
+
     # Verify ID finalization happened and IDs are hashes
     for f in report["findings"]:
         assert len(f["id"]) == 64  # SHA-256 hex string
@@ -100,6 +113,19 @@ def test_review_upload_happy_path_in_process(monkeypatch):
     report = response.json()
     assert report["run_metadata"]["orchestrator_type"] == "InProcessOrchestrator"
     assert len(report["findings"]) == 1
+
+    # Verify backend telemetry and skipped logs threading contract under in_process
+    assert "start_time" in report["run_metadata"]
+    assert report["run_metadata"]["start_time"] is not None
+    assert "duration_ms" in report["run_metadata"]
+    assert isinstance(report["run_metadata"]["duration_ms"], int)
+    assert report["run_metadata"]["budget_remaining"] == "100.0% token allocation"
+    
+    assert "skipped_log" in report["corpus_summary"]
+    assert isinstance(report["corpus_summary"]["skipped_log"], dict)
+    assert "/etc/passwd" in report["corpus_summary"]["skipped_log"]
+    reason = report["corpus_summary"]["skipped_log"]["/etc/passwd"]["skipped_reason"].lower()
+    assert any(term in reason for term in ["absolute", "traversal"])
 
 
 def test_review_upload_invalid_zip():
