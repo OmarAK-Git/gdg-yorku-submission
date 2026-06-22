@@ -1,0 +1,34 @@
+{
+  "run": "task-18",
+  "status": "completed",
+  "current_task": null,
+  "blocked": false,
+  "blockers": [],
+  "last_updated": "2026-06-21",
+  "tasks": [
+    {
+      "id": "TASK-18-1",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Implement src/gdg_yorku_submission/demo_hooks.py"
+    },
+    {
+      "id": "TASK-18-2",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Implement tests/test_validator_demo_hook.py"
+    },
+    {
+      "id": "TASK-18-3",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Implement docs/demo-script.md"
+    },
+    {
+      "id": "TASK-18-4",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Verification and final reporting"
+    }
+  ]
+}

@@ -81,7 +81,7 @@ This file tracks the status, dependencies, and references for all implementation
   - **Description**: Renders HTML/JS view for review findings, statuses, ledger, and secret summary.
   - **Dependencies**: Tasks 4, 14
   - **References**: [R4]
-- [ ] **Task 18 — Out-of-Band Validator-Rejection Demo Hook**
+- [x] **Task 18 — Out-of-Band Validator-Rejection Demo Hook**
   - **Description**: CLI demo script showing validation failure on manually corrupted report, isolated from HTTP path.
   - **Dependencies**: Task 14
   - **References**: [R9]
