@@ -789,3 +789,84 @@ def test_claim_altered_fails(sample_corpus):
     
     errors = validate_report_invariants(report, [f1], sample_corpus)
     assert any("Included finding 'f1' claim was altered" in e for e in errors)
+
+
+def test_validator_warnings_secret_redaction():
+    """
+    Test that registered secret values present in validator warnings are redacted
+    when compiling the report.
+    """
+    from gdg_yorku_submission.orchestrator import InProcessOrchestrator
+    from gdg_yorku_submission.schemas import PerspectiveStatus, GateStatus
+    
+    orch = InProcessOrchestrator()
+    orch.start_run()
+    
+    # Register a secret in the orchestrator's redaction context
+    secret_val = "SUPER_SECRET_TOKEN_XYZ"
+    redaction_ctx = orch.get_redaction_context()
+    placeholder = redaction_ctx.register_secret(secret_val, "TOKEN")
+    
+    # Set up empty corpus and findings
+    orch.set_corpus({})
+    orch.finalize_ids()
+    
+    # Manually append a warning with the secret value to the state (or force it via fallback)
+    # The terminal fallback warnings will receive any string we pass to fallback_warnings
+    report = orch.compile_terminal_report(fallback_warnings=[f"Warning containing secret: {secret_val}"])
+    
+    # Assert secret is redacted and placeholder is present in the final report warnings
+    assert any(placeholder in w for w in report.validator_warnings)
+    assert all(secret_val not in w for w in report.validator_warnings)
+
+
+def test_validator_warnings_secret_redaction_coordinated(monkeypatch):
+    """
+    Test that registered secret values present in validator warnings are redacted
+    under the coordinated compile path (compile_report).
+    """
+    from gdg_yorku_submission.orchestrator import InProcessOrchestrator
+    from gdg_yorku_submission.schemas import PerspectiveStatus, GateStatus
+    import gdg_yorku_submission.coordinator.validator as coord_val
+    
+    orch = InProcessOrchestrator()
+    orch.start_run()
+    
+    # Register a secret in the orchestrator's redaction context
+    secret_val = "SUPER_SECRET_COORDINATED_XYZ"
+    redaction_ctx = orch.get_redaction_context()
+    placeholder = redaction_ctx.register_secret(secret_val, "TOKEN")
+    
+    # Set up empty corpus and findings
+    orch.set_corpus({})
+    orch.finalize_ids()
+    
+    # Mock run_coordinator_compilation to return empty lists/ledger successfully
+    # so we proceed through the coordinated compile path
+    from gdg_yorku_submission.schemas import AccountingLedger
+    def mock_run_coordinator_compilation(*args, **kwargs):
+        return [], [], AccountingLedger(included=[], merged=[], omitted=[], contested=[])
+        
+    monkeypatch.setattr(
+        "gdg_yorku_submission.coordinator.run_coordinator_compilation",
+        mock_run_coordinator_compilation
+    )
+    
+    # Monkeypatch build_review_report to inject a warning with the secret value
+    original_build = coord_val.build_review_report
+    def mock_build_review_report(*args, **kwargs):
+        report = original_build(*args, **kwargs)
+        report.validator_warnings = [f"Coordinated warning containing secret: {secret_val}"]
+        return report
+        
+    monkeypatch.setattr(coord_val, "build_review_report", mock_build_review_report)
+    
+    # Compile the report via coordinated path
+    report = orch.compile_report()
+    
+    # Verify compile was coordinated and the warning was redacted
+    assert report.run_metadata["compilation_mode"] == "coordinated"
+    assert any(placeholder in w for w in report.validator_warnings)
+    assert all(secret_val not in w for w in report.validator_warnings)
+
+

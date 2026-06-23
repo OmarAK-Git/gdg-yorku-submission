@@ -492,17 +492,71 @@ async def run_debate_loop(
         else:
             # Generative finding: derive provisional ID deterministically from stable anchor (citation + claim hash)
             citation_str = p.groundednessCitation if p.groundednessCitation else "NONE"
+            
+            evidence_refs = []
+            loc_path = "unknown"
+            loc_start = 1
+            loc_end = 1
+            resolved_valid = False
+            
+            if citation_str != "NONE":
+                raw_citation = citation_str
+                if raw_citation.startswith("file:"):
+                    raw_citation = raw_citation[5:]
+                parts = raw_citation.split("#")
+                raw_path = parts[0].strip()
+                
+                # Normalize path
+                normalized_raw_path = raw_path.replace("\\", "/").lower()
+                
+                # Check corpus
+                corpus = orch.get_corpus() if hasattr(orch, "get_corpus") else {}
+                matched_key = None
+                for k in corpus.keys():
+                    if k.lower() == normalized_raw_path:
+                        matched_key = k
+                        break
+                        
+                if matched_key:
+                    corpus_file = corpus[matched_key]
+                    line_start = 1
+                    line_end = 1
+                    if len(parts) > 1:
+                        line_parts = parts[1].split("-")
+                        try:
+                            line_start = int(line_parts[0])
+                            if len(line_parts) > 1:
+                                line_end = int(line_parts[1])
+                            else:
+                                line_end = line_start
+                        except ValueError:
+                            pass
+                            
+                    # Bounds check
+                    if 1 <= line_start <= line_end <= corpus_file.original_line_count:
+                        loc_path = matched_key
+                        loc_start = line_start
+                        loc_end = line_end
+                        evidence_refs = [f"file:{matched_key}#{line_start}-{line_end}"]
+                        resolved_valid = True
+
+            if not resolved_valid:
+                logger.warning(
+                    f"Dropping ungrounded/invalid generative finding proposal: claim={p.text}, citation={citation_str}"
+                )
+                continue
+
             stable_hash = hashlib.sha256(f"{citation_str}:{p.text}".encode("utf-8")).hexdigest()
             finding_id = f"security-{stable_hash[:12]}"
-            
-            loc = parse_location_from_citation(p.groundednessCitation)
             
             # Coerce severity to standard enum
             try:
                 sev_enum = Severity(p.severity)
             except ValueError:
                 sev_enum = Severity.HIGH
-
+                
+            loc = Location(path=loc_path, line_start=loc_start, line_end=loc_end)
+            
             finding = Finding(
                 id=finding_id,
                 source_agent="security_debate",
@@ -510,7 +564,7 @@ async def run_debate_loop(
                 severity=sev_enum,
                 location=loc,
                 claim=p.text,
-                evidence_ref=[p.groundednessCitation] if p.groundednessCitation != "NONE" else [],
+                evidence_ref=evidence_refs,
                 status="active"
             )
 

@@ -283,12 +283,12 @@ def test_no_floor_severity_stop_condition():
         round_number=3,
         defender_turn=TurnResponse(summary="summary", new_proposals=[]),
         challenger_turn=TurnResponse(summary="summary", new_proposals=[p_low]),
-        scores_this_round={"C-R2-P1": 0.0}
+        scores_this_round={"C-R2-P1": 1.0}
     )
 
     terminated, reason = should_terminate([r1, r2, r3])
     assert terminated
-    assert "No critical or important proposals" in reason
+    assert "Score convergence and stability met" in reason
 
 # 6. High/critical defeated -> contested promotion safety
 @pytest.mark.anyio
@@ -584,6 +584,34 @@ async def test_generative_id_determinism():
     orch1 = MockOrchestrator()
     orch2 = MockOrchestrator()
     
+    from gdg_yorku_submission.schemas import CorpusFile
+    
+    for orch in (orch1, orch2):
+        orch.state["corpus"] = {
+            "src/app.py": CorpusFile(
+                normalized_path="src/app.py",
+                original_text="line\n" * 10,
+                redacted_text="line\n" * 10,
+                original_line_count=10,
+                redacted_to_original_line_map={i: i for i in range(1, 11)},
+                evidence_ref="file:src/app.py",
+                exposure_status="prompt_exposed",
+                ingest_status="success",
+                redaction_applied=True
+            ),
+            "src/db.py": CorpusFile(
+                normalized_path="src/db.py",
+                original_text="line\n" * 100,
+                redacted_text="line\n" * 100,
+                original_line_count=100,
+                redacted_to_original_line_map={i: i for i in range(1, 101)},
+                evidence_ref="file:src/db.py",
+                exposure_status="prompt_exposed",
+                ingest_status="success",
+                redaction_applied=True
+            )
+        }
+    
     def mock_defender(orch, findings, history):
         if not history:  # Round 1
             return TurnResponse(
@@ -820,6 +848,247 @@ def test_http_debate_fallback_on_failure(monkeypatch, caplog):
         if finding["claim"] == "Potential SQL injection in execute call.":
             found_baseline = True
     assert found_baseline, "Baseline finding not found in fallback report findings"
+
+
+@pytest.mark.anyio
+async def test_generative_finding_canonicalization():
+    orch = MockOrchestrator()
+    from gdg_yorku_submission.schemas import CorpusFile
+    
+    config_entry = CorpusFile(
+        normalized_path="src/config.py",
+        original_text="line\n" * 10,
+        redacted_text="line\n" * 10,
+        original_line_count=10,
+        redacted_to_original_line_map={i: i for i in range(1, 11)},
+        evidence_ref="file:src/config.py",
+        exposure_status="prompt_exposed",
+        ingest_status="success",
+        redaction_applied=True
+    )
+    orch.state["corpus"] = {"src/config.py": config_entry}
+    
+    def mock_defender_valid(orch_obj, findings, history):
+        if not history:
+            return TurnResponse(
+                summary="Defender Round 1",
+                opponent_scores=[],
+                new_proposals=[
+                    Proposal(
+                        text="Usability proposal",
+                        severity=Severity.INFO,
+                        groundednessCitation="NONE",
+                        reasoning="Usability"
+                    )
+                ]
+            )
+        return TurnResponse(
+            summary="Defender turn",
+            opponent_scores=[
+                OpponentScore(proposal_id="C-R2-P1", verdict="accept", reasoning="accept")
+            ],
+            new_proposals=[]
+        )
+        
+    def mock_challenger_valid(orch_obj, findings, history):
+        return TurnResponse(
+            summary="Challenger turn",
+            opponent_scores=[],
+            new_proposals=[
+                Proposal(
+                    text="Potential SQLi",
+                    severity=Severity.HIGH,
+                    groundednessCitation="src/config.py#5-8",
+                    reasoning="Reason"
+                )
+            ]
+        )
+        
+    session = await run_debate_loop(
+        orch=orch,
+        findings=[],
+        defender_fn=mock_defender_valid,
+        challenger_fn=mock_challenger_valid,
+        max_rounds=2
+    )
+    
+    candidate = next(c for c in session.ledger.candidates if c.finding.claim == "Potential SQLi")
+    assert candidate.finding.severity == Severity.HIGH
+    assert candidate.finding.location.path == "src/config.py"
+    assert candidate.finding.location.line_start == 5
+    assert candidate.finding.location.line_end == 8
+    assert candidate.finding.evidence_ref == ["file:src/config.py#5-8"]
+    
+    def mock_challenger_invalid(orch_obj, findings, history):
+        return TurnResponse(
+            summary="Challenger turn",
+            opponent_scores=[],
+            new_proposals=[
+                Proposal(
+                    text="Untrusted SQLi",
+                    severity=Severity.HIGH,
+                    groundednessCitation="src/missing.py#1-2",
+                    reasoning="Reason"
+                ),
+                Proposal(
+                    text="OOB SQLi",
+                    severity=Severity.CRITICAL,
+                    groundednessCitation="src/config.py#99-100",
+                    reasoning="Reason"
+                )
+            ]
+        )
+        
+    session_invalid = await run_debate_loop(
+        orch=orch,
+        findings=[],
+        defender_fn=mock_defender_valid,
+        challenger_fn=mock_challenger_invalid,
+        max_rounds=2
+    )
+    
+    # Assert both invalid generative proposals were dropped and did not reach the candidates ledger
+    assert len(session_invalid.ledger.candidates) == 0
+
+
+@pytest.mark.anyio
+async def test_debate_ungrounded_proposals_do_not_poison_compile(monkeypatch):
+    # Set ENABLE_SECURITY_DEBATE = true
+    monkeypatch.setenv("ENABLE_SECURITY_DEBATE", "true")
+    
+    # Mock the deterministic baseline to return empty findings
+    from gdg_yorku_submission.schemas import ReviewFinding, Location
+    from gdg_yorku_submission.severity import Severity
+    
+    def fake_security_baseline():
+        return [
+            ReviewFinding(
+                id="sec-ast-1",
+                source_agent="security_deterministic",
+                perspective="security",
+                severity=Severity.HIGH,
+                location=Location(path="src/app.py", line_start=1, line_end=2),
+                claim="Baseline SQLi",
+                evidence_ref=["file:src/app.py#1-2"],
+                status="active"
+            )
+        ], "complete", ""
+    monkeypatch.setattr("gdg_yorku_submission.security.agent.make_deterministic_specialist", lambda orch: fake_security_baseline)
+    
+    # Mock call_gemini_adversary and call_claude_adversary to simulate a debate with grounded + ungrounded proposals
+    from gdg_yorku_submission.security.debate_schema import AdversaryResponse, TurnResponse, Proposal, OpponentScore
+    import re
+    
+    async def mock_call_gemini_rn(orch, system_prompt, user_content, response_model):
+        proposal_ids = re.findall(r"- ID:\s*(C-R\d+-P\d+)", user_content)
+        opponent_scores = [
+            OpponentScore(proposal_id=pid, verdict="accept", reasoning="agree")
+            for pid in proposal_ids
+        ]
+        return TurnResponse(
+            summary="Defender accepts",
+            opponent_scores=opponent_scores,
+            new_proposals=[],
+            disagreements=[],
+            questions_for_human=[]
+        )
+        
+    async def mock_call_claude(orch, system_prompt, user_content, response_model):
+        return TurnResponse(
+            summary="Challenger proposes",
+            opponent_scores=[],
+            new_proposals=[
+                Proposal(
+                    text="Grounded generative finding",
+                    severity=Severity.HIGH,
+                    groundednessCitation="src/app.py#1-2",
+                    reasoning="Grounded"
+                ),
+                Proposal(
+                    text="Ungrounded generative finding",
+                    severity=Severity.HIGH,
+                    groundednessCitation="src/missing.py#10-20",
+                    reasoning="Ungrounded"
+                )
+            ],
+            disagreements=[],
+            questions_for_human=[]
+        )
+        
+    async def mock_call_gemini_dispatch(orch, system_prompt, user_content, response_model):
+        if response_model == AdversaryResponse:
+            return AdversaryResponse(proposals=[], questions_for_human=[])
+        return await mock_call_gemini_rn(orch, system_prompt, user_content, response_model)
+        
+    monkeypatch.setattr("gdg_yorku_submission.security.debate.call_gemini_adversary", mock_call_gemini_dispatch)
+    monkeypatch.setattr("gdg_yorku_submission.security.debate.call_claude_adversary", mock_call_claude)
+    
+    # Mock correctness agent to return empty
+    def fake_correctness(*args, **kwargs):
+        return []
+    monkeypatch.setattr("gdg_yorku_submission.correctness.agent.make_correctness_specialist", lambda orch: fake_correctness)
+    
+    # Create zip
+    import io
+    import zipfile
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("src/app.py", "db.execute(query)\n# line 2\n")
+    zip_bytes = buf.getvalue()
+    
+    from fastapi.testclient import TestClient
+    from gdg_yorku_submission.app import app
+    
+    client = TestClient(app)
+    files = {"file": ("test.zip", zip_bytes, "application/zip")}
+    response = client.post("/review", files=files, params={"orchestrator": "in_process"})
+    
+    assert response.status_code == 200
+    report = response.json()
+    
+    # Verify the coordinated path succeeded (no terminal fallback)
+    assert report["run_metadata"]["compilation_mode"] == "coordinated"
+    
+    # Verify that the ungrounded finding was NOT included, and the grounded one WAS included
+    claims = [f["claim"] for f in report["findings"]]
+    assert "Grounded generative finding" in claims
+    assert "Ungrounded generative finding" not in claims
+
+
+def test_debate_stop_conjunction_necessity():
+    # Verify that score convergence alone does NOT stop the debate when active high-severity findings are still generated.
+    p_high = Proposal(
+        id="C-R2-P1",
+        adversary="challenger",
+        text="High vulnerability",
+        severity=Severity.HIGH,
+        groundednessCitation="src/app.py",
+        reasoning="reason"
+    )
+
+    r1 = DebateRound(
+        round_number=1,
+        defender_turn=TurnResponse(summary="summary", new_proposals=[]),
+        challenger_turn=TurnResponse(summary="summary", new_proposals=[]),
+        scores_this_round={}
+    )
+    r2 = DebateRound(
+        round_number=2,
+        defender_turn=TurnResponse(summary="summary", new_proposals=[]),
+        challenger_turn=TurnResponse(summary="summary", new_proposals=[p_high]),
+        scores_this_round={"C-R2-P1": 5.0}
+    )
+    r3 = DebateRound(
+        round_number=3,
+        defender_turn=TurnResponse(summary="summary", new_proposals=[]),
+        challenger_turn=TurnResponse(summary="summary", new_proposals=[p_high]),
+        scores_this_round={"C-R2-P1": 5.0}
+    )
+
+    terminated, reason = should_terminate([r1, r2, r3])
+    assert not terminated
+
+
 
 
 

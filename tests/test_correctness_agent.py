@@ -623,3 +623,43 @@ def test_gemini_client_production_loud_failure_when_missing_creds():
         for key, val in old_env.items():
             os.environ[key] = val
 
+
+def test_coordinator_budget_reserve():
+    """
+    Test that non-coordinator budget leases account for the coordinator reserve,
+    while coordinator budget leases do not.
+    """
+    orch = InProcessOrchestrator()
+    orch.start_run()
+    
+    # Configure budget: max 2 calls, max 5000 tokens
+    state = orch._get_state()
+    state["budget"]["max_llm_calls"] = 2
+    state["budget"]["max_total_tokens"] = 5000
+    orch._save_state(state)
+    
+    # Reserve is 1 call, 4000 tokens.
+    # Non-coordinator lease of 500 tokens:
+    # check_total_tokens = used (0) + lease (500) + reserve (4000) = 4500 <= 5000. Success.
+    # check_llm_calls = used (0) + 1 + reserve (1) = 2 <= 2. Success.
+    lease1 = BudgetLease(component="correctness_agent", estimated_tokens=500, provider="gemini")
+    acquire_budget_lease(orch, lease1)
+    
+    # A second non-coordinator lease of 500 tokens:
+    # check_total_tokens = used (500) + lease (500) + reserve (4000) = 5000 <= 5000.
+    # check_llm_calls = used (1) + 1 + reserve (1) = 3 > 2. Raises!
+    lease2 = BudgetLease(component="correctness_agent", estimated_tokens=500, provider="gemini")
+    with pytest.raises(BudgetExhaustedError, match="maximum LLM calls cap reached"):
+        acquire_budget_lease(orch, lease2)
+        
+    # A coordinator lease of 500 tokens:
+    # check_total_tokens = used (500) + lease (500) = 1000 <= 5000.
+    # check_llm_calls = used (1) + 1 = 2 <= 2. Success. (exempt from reserve check)
+    lease_coord = BudgetLease(component="coordinator", estimated_tokens=500, provider="gemini")
+    acquire_budget_lease(orch, lease_coord)
+    
+    state = orch.read_state()
+    budget = RunBudget(**state["budget"])
+    assert budget.used_llm_calls == 2
+
+

@@ -42,7 +42,7 @@ def get_proposals_evaluated_in_round(round_num: int, rounds: List[DebateRound]) 
 
 def should_terminate(rounds: List[DebateRound]) -> Tuple[bool, Optional[str]]:
     """
-    Evaluates the 4 termination conditions per the spec and returns (should_terminate, reason).
+    Evaluates the termination conditions per the spec and returns (should_terminate, reason).
     """
     if not rounds:
         return False, None
@@ -66,24 +66,24 @@ def should_terminate(rounds: List[DebateRound]) -> Tuple[bool, Optional[str]]:
     if len(rounds) >= 2:
         r_N_prev = rounds[-2]
         
-        # Condition 3: Score convergence
+        # Check delta/score convergence
         props_N = get_proposals_evaluated_in_round(r_N.round_number, rounds)
         props_prev = get_proposals_evaluated_in_round(r_N_prev.round_number, rounds)
         
         t_max_N = sum(get_proposal_max_score(p) for p in props_N)
         t_max_prev = sum(get_proposal_max_score(p) for p in props_prev)
         
-        # Max possible delta is the maximum possible score change between consecutive rounds N and N-1
         max_possible_delta = max(t_max_N, t_max_prev)
         
         actual_N = sum(r_N.scores_this_round.values())
         actual_prev = sum(r_N_prev.scores_this_round.values())
         actual_delta = abs(actual_N - actual_prev)
         
+        is_converged = False
         if max_possible_delta > 0.0 and actual_delta < 0.05 * max_possible_delta:
-            return True, f"Score convergence: actual delta {actual_delta:.2f} is below 5% of max possible delta {max_possible_delta:.2f}."
+            is_converged = True
             
-        # Condition 4: No critical/important (at-or-above-floor) proposals for 2 consecutive rounds
+        # Check stability: no critical/important (at-or-above-floor) proposals for 2 consecutive rounds
         def has_no_floor_proposals(r: DebateRound) -> bool:
             for turn in [r.defender_turn, r.challenger_turn]:
                 if turn:
@@ -92,49 +92,15 @@ def should_terminate(rounds: List[DebateRound]) -> Tuple[bool, Optional[str]]:
                             return False
             return True
             
-        if has_no_floor_proposals(r_N) and has_no_floor_proposals(r_N_prev):
-            return True, "No critical or important proposals generated for 2 consecutive rounds."
+        no_new_floor_proposals = has_no_floor_proposals(r_N) and has_no_floor_proposals(r_N_prev)
+        
+        # Conjunction of score convergence AND stability (no floor proposals)
+        if is_converged and no_new_floor_proposals:
+            return True, (
+                f"Score convergence and stability met: actual delta {actual_delta:.2f} "
+                f"is below 5% of max possible delta {max_possible_delta:.2f} AND no critical/high "
+                f"proposals generated for 2 consecutive rounds."
+            )
             
     return False, None
-
-def check_stability(
-    scores_history: List[Dict[str, float]],
-    delta_threshold: float,
-    floor_threshold: float,
-    n_stability_rounds: int
-) -> bool:
-    """
-    Checks if the scores of all findings have been stable (delta < delta_threshold
-    and no floor crossing) for the last n_stability_rounds rounds.
-    """
-    if len(scores_history) <= n_stability_rounds:
-        return False
-
-    # Get all finding IDs from the history
-    finding_ids = set()
-    for round_scores in scores_history:
-        finding_ids.update(round_scores.keys())
-
-    # We check the last n_stability_rounds transitions.
-    # A transition is from round i-1 to round i.
-    # The last round is index len(scores_history) - 1.
-    start_idx = len(scores_history) - n_stability_rounds
-
-    for i in range(start_idx, len(scores_history)):
-        prev_scores = scores_history[i - 1]
-        curr_scores = scores_history[i]
-
-        for fid in finding_ids:
-            prev_val = prev_scores.get(fid, 0.5)
-            curr_val = curr_scores.get(fid, 0.5)
-
-            # Check delta
-            if abs(curr_val - prev_val) >= delta_threshold:
-                return False
-
-            # Check floor crossing: below floor -> at or above floor
-            if prev_val < floor_threshold and curr_val >= floor_threshold:
-                return False
-
-    return True
 
