@@ -1,5 +1,6 @@
 import os
 import json
+import inspect
 import logging
 from typing import Any, Optional
 from gdg_yorku_submission.budget import BudgetLease, acquire_budget_lease, record_llm_usage
@@ -73,41 +74,77 @@ async def call_claude_adversary(
         return response_model.model_validate(dummy)
 
     # Real Claude call
+    model_name = model or os.getenv("CRUCIBLE_CLAUDE_MODEL", "claude-opus-4-8")
+    
+    project = os.getenv("GOOGLE_CLOUD_PROJECT")
+    location = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
     api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise ValueError("ANTHROPIC_API_KEY environment variable is not set.")
 
-    from anthropic import AsyncAnthropic
-    client = AsyncAnthropic(api_key=api_key)
+    client = None
     
-    if not model:
-        model = os.getenv("CRUCIBLE_CLAUDE_MODEL", "claude-3-5-sonnet-20241022")
+    # Try Google Cloud Vertex (ADC) first if GOOGLE_CLOUD_PROJECT is set
+    if project:
+        try:
+            from anthropic import AsyncAnthropicVertex
+            client = AsyncAnthropicVertex(project_id=project, region=location)
+            logger.info("Using AsyncAnthropicVertex client for adversary call.")
+        except Exception as e:
+            logger.warning(f"Failed to initialize AsyncAnthropicVertex: {e}. Trying fallback AsyncAnthropic...")
+            
+    if not client:
+        if api_key:
+            from anthropic import AsyncAnthropic
+            client = AsyncAnthropic(api_key=api_key)
+            logger.info("Using standard AsyncAnthropic client for adversary call.")
+        else:
+            raise ValueError(
+                "Neither GOOGLE_CLOUD_PROJECT (for Vertex AI ADC) nor ANTHROPIC_API_KEY "
+                "environment variables were detected."
+            )
 
-    response = await client.messages.create(
-        model=model,
-        max_tokens=4000,
-        system=system_prompt,
-        messages=[
+    create_kwargs = {
+        "model": model_name,
+        "max_tokens": 4000,
+        "system": system_prompt,
+        "messages": [
             {"role": "user", "content": user_content}
-        ]
-    )
-    
-    content = response.content[0].text
-    
-    input_tokens = estimated_input_tokens
-    output_tokens = estimated_output_tokens
-    if response.usage:
-        input_tokens = response.usage.input_tokens
-        output_tokens = response.usage.output_tokens
-        
-    actual_tokens = input_tokens + output_tokens
-    cost = (input_tokens * 3.0 / 1_000_000) + (output_tokens * 15.0 / 1_000_000)
-    record_llm_usage(orch, "claude", actual_tokens, cost)
+        ],
+        "output_config": {
+            "effort": os.getenv("CRUCIBLE_CLAUDE_EFFORT", "medium")
+        }
+    }
 
-    cleaned = clean_json_string(content)
     try:
-        data = json.loads(cleaned)
-        return response_model.model_validate(data)
-    except Exception as e:
-        logger.error(f"Claude returned malformed response: {content[:500]}")
-        raise ValueError(f"Claude returned malformed JSON: {e}")
+        response = await client.messages.create(**create_kwargs)
+        content = response.content[0].text
+
+        input_tokens = estimated_input_tokens
+        output_tokens = estimated_output_tokens
+        if response.usage:
+            input_tokens = response.usage.input_tokens
+            output_tokens = response.usage.output_tokens
+
+        actual_tokens = input_tokens + output_tokens
+        cost = (input_tokens * 3.0 / 1_000_000) + (output_tokens * 15.0 / 1_000_000)
+        record_llm_usage(orch, "claude", actual_tokens, cost)
+
+        cleaned = clean_json_string(content)
+        try:
+            data = json.loads(cleaned)
+            return response_model.model_validate(data)
+        except Exception as e:
+            logger.error(f"Claude returned malformed response: {content[:500]}")
+            raise ValueError(f"Claude returned malformed JSON: {e}")
+    finally:
+        # Release the async Anthropic client (AsyncAnthropicVertex talks to the
+        # same Vertex endpoint as Gemini), so its transport is not reported as an
+        # unclosed socket/transport at GC. close() is a coroutine on the real
+        # client but a plain MagicMock in unit tests -- await only if awaitable.
+        closer = getattr(client, "close", None)
+        if closer is not None:
+            try:
+                maybe_coro = closer()
+                if inspect.isawaitable(maybe_coro):
+                    await maybe_coro
+            except Exception:
+                pass

@@ -352,16 +352,14 @@ def test_coordinator_prompt_noncing_and_malicious_input(base_corpus):
 
 # --- Point 8: Schema-Locked Contract Test ---
 def test_gemini_client_forwards_response_schema_contract():
-    mock_model = MagicMock()
+    mock_client = MagicMock()
     mock_response = MagicMock()
     mock_response.text = "{}"
     mock_response.usage_metadata = None
-    mock_model.generate_content.return_value = mock_response
+    mock_client.models.generate_content.return_value = mock_response
     
     with patch.dict("os.environ", {"GOOGLE_CLOUD_PROJECT": "mock_project"}), \
-         patch("vertexai.generative_models.GenerativeModel", return_value=mock_model) as mock_gen_model, \
-         patch("vertexai.generative_models.GenerationConfig") as mock_config_class, \
-         patch("vertexai.init"):
+         patch("google.genai.Client", return_value=mock_client) as mock_gen_client_ctor:
         
         client = GeminiClient(use_fake=False)
         orch = MagicMock()
@@ -377,11 +375,16 @@ def test_gemini_client_forwards_response_schema_contract():
                 component="coordinator"
             )
             
-            mock_model.generate_content.assert_called_once()
-            mock_config_class.assert_called_once_with(
-                response_mime_type="application/json",
-                response_schema=schema
-            )
+            mock_gen_client_ctor.assert_called_once()
+            assert mock_gen_client_ctor.call_args.kwargs.get("vertexai") is True
+            assert mock_gen_client_ctor.call_args.kwargs.get("project") == "mock_project"
+            
+            mock_client.models.generate_content.assert_called_once()
+            called_config = mock_client.models.generate_content.call_args.kwargs.get("config")
+            assert called_config is not None
+            assert called_config.response_mime_type == "application/json"
+            assert called_config.response_schema == schema
+
 
 # --- Cleanup: ID Stability ---
 def test_merged_id_stability_cross_run(base_corpus):

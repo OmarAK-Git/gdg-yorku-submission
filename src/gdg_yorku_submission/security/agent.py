@@ -45,6 +45,8 @@ def make_security_specialist(orch: Any) -> Callable[[], Any]:
         except Exception as e:
             # On any failure, degrade gracefully to the baseline AST results (fallback)
             logger.warning(f"Debate loop failed with {type(e).__name__}: {e}. Gracefully falling back to AST baseline.")
-            return baseline_findings, status, reason
+            notice = f"Security debate failed: {type(e).__name__}: {e}. Fell back to AST baseline."
+            new_reason = f"{reason}; {notice}" if reason else notice
+            return baseline_findings, "complete_limited", new_reason
 
     return security_specialist

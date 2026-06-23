@@ -107,11 +107,11 @@ This file tracks the status, dependencies, and references for all implementation
   - **Description**: Integration test verifying complete run, secret redactions, fallback.
   - **Dependencies**: Tasks 15, 16, 17
   - **References**: [R3]
-- [ ] **Task 24 — Real-LLM Smoke Script**
+- [x] **Task 24 — Real-LLM Smoke Script**
   - **Description**: Live run wrapper script for dry run or actual integration tests.
   - **Dependencies**: Tasks 12, 15, 16
   - **References**: [R10]
-- [ ] **Task 25 — README + Writeup + Provenance**
+- [/] **Task 25 — README + Writeup + Provenance**
   - **Description**: Documentation: setup, architecture, provenance table, user instructions.
   - **Dependencies**: Stable core
   - **References**: [R10]

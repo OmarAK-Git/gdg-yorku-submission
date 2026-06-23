@@ -2,7 +2,7 @@
 
 ## Project Status
 - **Phase**: Sprint 5: Coordination & Validation (Demo prep)
-- **Overall Completion**: 88.5% (23 / 26 tasks complete)
+- **Overall Completion**: 92.3% (24 / 26 tasks complete)
 
 ## Completed Tasks
 - [x] Task 1: Fresh Repo Baseline + Provenance Guard
@@ -28,14 +28,13 @@
 - [x] Task 21: Security Debate Adapter
 - [x] Task 22: Optional Orbit Blast-Radius
 - [x] Task 23: End-to-End Tests
+- [x] Task 24: Real-LLM Smoke Script
 - [x] Sprint 2 Gate Review Fixes (Task 7 context threading, Task 8 pre-conditions, state preservation, precise virtualenv skips, descope documentation, and HTTP E2E tests)
 
 ## In Progress Tasks
-*None*
+- [/] Task 25: README + Writeup + Provenance
 
 ## Upcoming Tasks (Sprint 5 & Close-Out)
-- [ ] Task 24: Real-LLM Smoke Script
-- [ ] Task 25: README + Writeup + Provenance
 - [ ] Task 26: Evidence + Recording Prep
 
 ## Gaps, Issues, and Risks

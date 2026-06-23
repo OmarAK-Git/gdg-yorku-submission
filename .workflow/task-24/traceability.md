@@ -1,0 +1,13 @@
+# Traceability Matrix
+
+| Req | AC | Decision | Task | Code/Diff | Test/Check | Review | Status |
+|---|---|---|---|---|---|---|---|
+| REQ-24-R1 | AC-24-01 | DEC-24-01 | TASK-003 | [run_sample_review.py](file:///c:/Users/oalan/gdg-yorku-submission/scripts/run_sample_review.py) | [test_run_sample_script.py](file:///c:/Users/oalan/gdg-yorku-submission/tests/test_run_sample_script.py) | None | completed |
+| REQ-24-R2 | AC-24-02 | DEC-24-02 | TASK-003 | [run_sample_review.py](file:///c:/Users/oalan/gdg-yorku-submission/scripts/run_sample_review.py) | [test_run_sample_script.py](file:///c:/Users/oalan/gdg-yorku-submission/tests/test_run_sample_script.py) | None | completed |
+| REQ-24-R3 | AC-24-03 | DEC-24-03 | TASK-003 | [run_sample_review.py](file:///c:/Users/oalan/gdg-yorku-submission/scripts/run_sample_review.py) | [test_run_sample_script.py](file:///c:/Users/oalan/gdg-yorku-submission/tests/test_run_sample_script.py) | None | completed |
+| REQ-24-R4 | AC-24-04 | DEC-24-04 | TASK-003 | [run_sample_review.py](file:///c:/Users/oalan/gdg-yorku-submission/scripts/run_sample_review.py) | [test_run_sample_script.py](file:///c:/Users/oalan/gdg-yorku-submission/tests/test_run_sample_script.py) | None | completed |
+| REQ-24-R5 | AC-24-05 | DEC-24-05 | TASK-004 | [test_run_sample_script.py](file:///c:/Users/oalan/gdg-yorku-submission/tests/test_run_sample_script.py) | `pytest` run | None | completed |
+| REQ-24-R6 | AC-24-06 | DEC-24-06 | TASK-002 | [gemini.py](file:///c:/Users/oalan/gdg-yorku-submission/src/gdg_yorku_submission/llm/gemini.py), [gemini_adapter.py](file:///c:/Users/oalan/gdg-yorku-submission/src/gdg_yorku_submission/security/gemini_adapter.py), [claude_adapter.py](file:///c:/Users/oalan/gdg-yorku-submission/src/gdg_yorku_submission/security/claude_adapter.py) | [test_run_sample_script.py](file:///c:/Users/oalan/gdg-yorku-submission/tests/test_run_sample_script.py) | None | completed |
+| REQ-24-R7 | AC-24-07 | DEC-24-07 | TASK-002 | [claude_adapter.py](file:///c:/Users/oalan/gdg-yorku-submission/src/gdg_yorku_submission/security/claude_adapter.py) | Code review | None | completed |
+| REQ-24-R8 | AC-24-08 | DEC-24-08 | TASK-004 | [run_sample_review.py](file:///c:/Users/oalan/gdg-yorku-submission/scripts/run_sample_review.py) | `test_script_redaction_boundary` | None | completed |
+| REQ-24-R9 | AC-24-09 | DEC-24-09 | TASK-006 | [orchestrator.py](file:///c:/Users/oalan/gdg-yorku-submission/src/gdg_yorku_submission/orchestrator.py), [gemini.py](file:///c:/Users/oalan/gdg-yorku-submission/src/gdg_yorku_submission/llm/gemini.py) | `test_adk_orchestrator_genuinely_uses_adk`, `test_adk_runner_execution_spy`, `test_adk_orchestrator_fallback_on_missing_adk` | None | completed |

@@ -74,40 +74,64 @@ async def call_gemini_adversary(
         return response_model.model_validate(dummy)
 
     # Real Gemini call
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise ValueError("GEMINI_API_KEY environment variable is not set.")
+    model_name = model or os.getenv("GEMINI_MODEL", "gemini-3.1-pro-preview")
 
-    import google.generativeai as genai
-    genai.configure(api_key=api_key)
-    
-    if not model:
-        model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
-
-    # Combine system prompt with instructions or set as system instruction
-    generation_config = {
-        "response_mime_type": "application/json"
-    }
-    
-    gemini_model = genai.GenerativeModel(
-        model_name=model,
-        system_instruction=system_prompt,
-        generation_config=generation_config
-    )
-    
-    # Run the generation in an executor since it's a blocking client call
     import anyio
+    from google import genai
+    from google.genai import types
+
+    project = os.getenv("GOOGLE_CLOUD_PROJECT")
+    location = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+    api_key = os.getenv("GEMINI_API_KEY")
     
-    def sync_generate():
-        return gemini_model.generate_content(user_content)
-        
-    response = await anyio.to_thread.run_sync(sync_generate)
-    
-    content = response.text
-    
+    if project:
+        client = genai.Client(
+            vertexai=True,
+            project=project,
+            location=location
+        )
+        logger.info("Using google.genai Client with Vertex AI (ADC).")
+    elif api_key:
+        client = genai.Client(
+            api_key=api_key
+        )
+        logger.info("Using google.genai Client with API Key.")
+    else:
+        raise ValueError(
+            "Neither GOOGLE_CLOUD_PROJECT (for Vertex AI ADC) nor GEMINI_API_KEY "
+            "environment variables were detected."
+        )
+
+    config = types.GenerateContentConfig(
+        system_instruction=system_prompt,
+        response_mime_type="application/json",
+        response_schema=response_model
+    )
+
+    def sync_call_genai():
+        return client.models.generate_content(
+            model=model_name,
+            contents=user_content,
+            config=config
+        )
+
+    try:
+        response = await anyio.to_thread.run_sync(sync_call_genai)
+        content = response.text
+    except Exception as e:
+        logger.error(f"google.genai adversary call failed. Error: {e}")
+        raise ValueError(f"google.genai call failed: {e}")
+    finally:
+        # Release the (synchronous) genai client so its transport is not reported
+        # as an unclosed socket at GC. Only the sync side is exercised here.
+        try:
+            client.close()
+        except Exception:
+            pass
+
     input_tokens = estimated_input_tokens
     output_tokens = estimated_output_tokens
-    if hasattr(response, "usage_metadata") and response.usage_metadata:
+    if response and hasattr(response, "usage_metadata") and response.usage_metadata:
         input_tokens = response.usage_metadata.prompt_token_count
         output_tokens = response.usage_metadata.candidates_token_count
         

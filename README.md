@@ -21,7 +21,7 @@ Our system resolves these challenges by combining **deterministic AST-based secu
 * **Vertex AI Gemini (Gemini 1.5 Flash / Pro)**:
   * *Why*: Used to run the grounded Correctness Agent, the Security Defender, and the Coordinator Compiler. Gemini's massive context window enables ingestion of entire codebase contexts, while its rapid inference speed keeps review latency low. Its robust **JSON-schema locking** ensures structured, schema-valid outputs that can be deterministically parsed and verified by our system.
 * **Google ADK (Agent Development Kit)**:
-  * *Why*: Chosen as the structured framework to orchestrate our multi-agent architecture. To mitigate risks associated with SDK updates, we encapsulated it behind a custom **Orchestration Seam** (supporting identical conformance signatures between the ADK and an in-process fallback), ensuring the system remains resilient and compliant.
+  * *Why*: Used as the core framework for multi-agent execution and orchestration. The `AdkOrchestrator` genuinely runs on the Google ADK framework, backing session state on ADK's `InMemorySessionService` and orchestrating Vertex Gemini calls via ADK's `LlmAgent` and `Runner` execution loop. To mitigate dependency and environment risks, it is wrapped behind a robust **Orchestration Seam** that degrades gracefully to a pure-Python `InProcessOrchestrator` if ADK is unavailable or fails at runtime.
 
 ---
 

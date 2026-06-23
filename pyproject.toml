@@ -25,7 +25,9 @@ dependencies = [
     "python-multipart>=0.0.6",
     "jinja2>=3.1.2",
     "google-cloud-aiplatform>=1.30.0",
-    "anthropic>=0.3.0",
+    "anthropic>=0.40.0",
+    "python-dotenv>=1.0.0",
+    "google-adk==2.3.0",
 ]
 
 [project.optional-dependencies]
@@ -42,7 +44,13 @@ where = ["src"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 pythonpath = ["src"]
+addopts = "-m 'not live_smoke'"
+markers = [
+    "live_smoke: opt-in live integration smoke test using real LLMs"
+]
 filterwarnings = [
     "error",
     "ignore::starlette.exceptions.StarletteDeprecationWarning",
+    "ignore::DeprecationWarning:google.adk",
+    "ignore:.*AgentConfig.*:DeprecationWarning",
 ]

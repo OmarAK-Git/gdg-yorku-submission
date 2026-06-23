@@ -452,6 +452,14 @@ class Orchestrator(abc.ABC):
             logger.error(f"CRITICAL: Validator crashed during terminal fallback report validation: {e}", exc_info=True)
             report.validator_warnings.append(f"Validator internal crash: {e}")
             
+        for status in statuses:
+            if status.perspective == "security" and "debate failed" in status.reason.lower():
+                report.validator_warnings.append(f"Security perspective warning: {status.reason}")
+
+        adk_runner_warn = state.get("run_metadata", {}).get("adk_runner_warning")
+        if adk_runner_warn:
+            report.validator_warnings.append(adk_runner_warn)
+
         # Central RedactionContext sweep at the HTTP and output boundary (defense-in-depth sanitization of warnings)
         redaction_ctx = self.get_redaction_context()
         if redaction_ctx:
@@ -524,6 +532,14 @@ class Orchestrator(abc.ABC):
             logger.error(f"CRITICAL: Validator crashed during coordinated report validation: {e}", exc_info=True)
             return self.compile_terminal_report(fallback_warnings=[f"Validator internal crash: {e}"])
             
+        for status in statuses:
+            if status.perspective == "security" and "debate failed" in status.reason.lower():
+                report.validator_warnings.append(f"Security perspective warning: {status.reason}")
+
+        adk_runner_warn = state.get("run_metadata", {}).get("adk_runner_warning")
+        if adk_runner_warn:
+            report.validator_warnings.append(adk_runner_warn)
+
         # Central RedactionContext sweep at the HTTP and output boundary (defense-in-depth sanitization of warnings)
         redaction_ctx = self.get_redaction_context()
         if redaction_ctx:
@@ -549,30 +565,130 @@ class InProcessOrchestrator(Orchestrator):
         self._state = state
 
 
-_ADK_SHARED_STORE = {}
+try:
+    from google.adk.sessions import InMemorySessionService
+    _ADK_AVAILABLE = True
+except ImportError:
+    _ADK_AVAILABLE = False
 
 class AdkOrchestrator(Orchestrator):
+    _session_service = None
+    _local_state_store = {}
+    _fallback_mode = False
+
     def __init__(self) -> None:
         super().__init__()
+        self._redaction_context = None
+
+    def start_run(self) -> str:
+        # Check if ADK is available and initialize InMemorySessionService class-level if needed
+        if AdkOrchestrator._session_service is None:
+            if not _ADK_AVAILABLE:
+                AdkOrchestrator._fallback_mode = True
+                logger.warning("google-adk package is not available. Falling back to in-process behavior.")
+            else:
+                try:
+                    from google.adk.sessions import InMemorySessionService
+                    AdkOrchestrator._session_service = InMemorySessionService()
+                    AdkOrchestrator._fallback_mode = False
+                except Exception as e:
+                    AdkOrchestrator._fallback_mode = True
+                    logger.warning(f"Failed to instantiate InMemorySessionService: {e}. Falling back to in-process behavior.")
+
+        run_id = super().start_run()
+        
+        if AdkOrchestrator._fallback_mode:
+            self.set_run_metadata(
+                "adk_warning",
+                "Google ADK was not available or failed to initialize. Fell back to in-process orchestrator."
+            )
+        else:
+            self.set_run_metadata("adk_orchestrator_status", "ADK SessionService initialized successfully.")
+            
+        return run_id
 
     def _get_state(self) -> Dict[str, Any]:
-        if not self.run_id or self.run_id not in _ADK_SHARED_STORE:
+        if not self.run_id:
             raise RuntimeError("Run has not been started.")
-        return _ADK_SHARED_STORE[self.run_id]
+            
+        if AdkOrchestrator._fallback_mode or AdkOrchestrator._session_service is None:
+            if self.run_id not in AdkOrchestrator._local_state_store:
+                raise RuntimeError("Run has not been started.")
+            state = AdkOrchestrator._local_state_store[self.run_id]
+        else:
+            # ADK mode
+            try:
+                # NOTE: This integration explicitly depends on internal/private session APIs in google-adk==2.3.0
+                # (_get_session_impl, _create_session_impl, and sessions dict). Changing the ADK version
+                # may break this. A durability guard test (test_adk_internal_apis_durability_guard) is active
+                # to catch any breaking change.
+                session = AdkOrchestrator._session_service._get_session_impl(
+                    app_name="gdg-yorku-submission",
+                    user_id="system",
+                    session_id=self.run_id
+                )
+                if not session:
+                    raise RuntimeError("Run has not been started.")
+                state = session.state
+            except Exception as e:
+                logger.warning(f"ADK session retrieval failed: {e}. Falling back to in-process store.")
+                AdkOrchestrator._fallback_mode = True
+                if self.run_id not in AdkOrchestrator._local_state_store:
+                    raise RuntimeError("Run has not been started.")
+                state = AdkOrchestrator._local_state_store[self.run_id]
+
+        if getattr(self, "_redaction_context", None) is not None:
+            state["redaction_context"] = self._redaction_context
+        return state
 
     def _save_state(self, state: Dict[str, Any]) -> None:
         if not self.run_id:
             raise RuntimeError("Run has not been started.")
-        # Bounded store growth to mitigate memory leak
-        if len(_ADK_SHARED_STORE) >= 100 and self.run_id not in _ADK_SHARED_STORE:
-            # Evict first 50 runs
-            old_keys = list(_ADK_SHARED_STORE.keys())[:50]
-            for k in old_keys:
-                _ADK_SHARED_STORE.pop(k, None)
-        _ADK_SHARED_STORE[self.run_id] = state
+            
+        # Keep exact reference to redaction_context
+        if "redaction_context" in state:
+            self._redaction_context = state["redaction_context"]
+
+        # Always mirror to local store as fail-safe fallback
+        AdkOrchestrator._local_state_store[self.run_id] = state
+        
+        if not AdkOrchestrator._fallback_mode and AdkOrchestrator._session_service is not None:
+            try:
+                # NOTE: This integration explicitly depends on internal/private session APIs in google-adk==2.3.0
+                # (_get_session_impl, _create_session_impl, and sessions dict). Changing the ADK version
+                # may break this. A durability guard test (test_adk_internal_apis_durability_guard) is active
+                # to catch any breaking change.
+                session = AdkOrchestrator._session_service._get_session_impl(
+                    app_name="gdg-yorku-submission",
+                    user_id="system",
+                    session_id=self.run_id
+                )
+                if not session:
+                    AdkOrchestrator._session_service._create_session_impl(
+                        app_name="gdg-yorku-submission",
+                        user_id="system",
+                        session_id=self.run_id,
+                        state=state
+                    )
+                else:
+                    # Mutate internal state directly to make it persist. This is an ADK private implementation detail.
+                    AdkOrchestrator._session_service.sessions["gdg-yorku-submission"]["system"][self.run_id].state = state
+            except Exception as e:
+                logger.warning(f"ADK session save failed: {e}. Switching to fallback mode.")
+                AdkOrchestrator._fallback_mode = True
+                # Ensure the warning is written to metadata in fallback state
+                if "run_metadata" not in state:
+                    state["run_metadata"] = {}
+                state["run_metadata"]["adk_warning"] = f"ADK session save failed ({e}). Fell back to in-process orchestrator."
 
     @classmethod
     def clear_shared_store(cls) -> None:
         """Utility to clear store during test teardowns."""
-        global _ADK_SHARED_STORE
-        _ADK_SHARED_STORE.clear()
+        cls._local_state_store.clear()
+        cls._fallback_mode = False
+        if cls._session_service is not None:
+            try:
+                from google.adk.sessions import InMemorySessionService
+                cls._session_service = InMemorySessionService()
+            except Exception:
+                cls._session_service = None

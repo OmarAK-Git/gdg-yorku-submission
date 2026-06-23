@@ -7,21 +7,14 @@
 - Secret Scanner + Redaction Invariant (Task 7) is completed, porting the secret gate detection, redaction invariant, and salted hash fingerprints.
 - Evidence-Plane Prompt Builder (Task 8) is completed, building a nonced, sanitized, and redacted prompt representation of the prompt-exposed corpus.
 - Task 9 (Source-of-Truth Discovery) and Task 10 (Rewrite Correctness Rubric/Methodology) are completed and verified.
-- Task 12 (Correctness Agent Adapter) is completed, integrated, and verified, passing all 200 tests.
-- Task 13 (Coordinator Compiler) is completed and verified, passing all tests.
-- Task 14 (Conservation Validator) is completed and verified, implementing full conservation, routing, severity counts, and contested K-cap checks.
-- Task 15 (Bounded Regeneration + Deterministic Terminal Report) is completed and verified, implementing validator retry feedback loops and zero-LLM fallbacks.
-- Task 18 (Out-of-Band Validator-Rejection Demo Hook) and Task 19 (Debate Data Model schemas) are completed and verified.
+- Task 24 (Real-LLM Smoke Script & Gate Review Updates) is completed and verified, establishing ADC-first auth for Gemini and Claude Vertex clients, updating models, capping Claude reasoning effort, surfacing warnings, and introducing redaction and live test suite coverage.
 
 ## Active Focus
-- Completed Task 23: End-to-End Tests. Verified the complete review pipeline, coordinator fallback, and the offline mode guarantee.
-- Moving to live integration smoke scripts (Task 24) and close-out documentation.
+- Preparing documentation, setup instructions, architecture writeup, user instructions, and provenance checklist (Task 25).
 
 ## Deferred Constraints (from Sprint 3 Gate)
 - **Tag for Task 13–14**: The correctness agent discards `sot_result.sot_text` and feeds the full file into the evidence plane, bypassing the README heading-allowlist. For the validator's evidence-existence check, we validate against the full loaded corpus file line count. This has been implemented successfully in Task 14.
-- **Tag for Task 16/24**: Correctness grounding and coordinate boundaries validation have been verified E2E via the demo sample tests; actual LLM correctness detection is deferred to Task 24.
-
+- **Tag for Task 16/24**: Correctness grounding and coordinate boundaries validation have been verified E2E via the demo sample tests; actual LLM correctness detection is verified in dry-run/fake mode and live smoke test structure in Task 24.
 
 ## Next Steps
-1. Live LLM / real API smoke scripts (Task 24).
-2. README setup writeup, demo recording, and provenance checklist (Tasks 25-26).
+1. Finalize README setup writeup, demo recording, and provenance checklist (Tasks 25-26).
