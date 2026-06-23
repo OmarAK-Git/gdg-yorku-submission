@@ -55,3 +55,6 @@ Thumbs.db
 # Project local
 samples/driftstore.zip
 evidence/
+
+# Orbit Knowledge Graph captures (real findings, internal URLs, query bodies)
+.orbit-captures/

@@ -1,0 +1,9 @@
+# Triggers GitLab Ultimate security scanning so the Orbit Knowledge Graph has
+# Vulnerability / SecurityScan / Pipeline nodes to index for blast-radius.
+# This file only does anything on GitLab CI (it is a no-op on GitHub).
+stages:
+  - test
+
+include:
+  - template: Security/SAST.gitlab-ci.yml
+  - template: Security/Dependency-Scanning.gitlab-ci.yml
