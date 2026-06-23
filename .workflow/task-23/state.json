@@ -1,0 +1,28 @@
+{
+  "run": "task-23",
+  "status": "completed",
+  "current_task": null,
+  "blocked": false,
+  "blockers": [],
+  "last_updated": "2026-06-23",
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Plan and state files created."
+    },
+    {
+      "id": "TASK-002",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Implemented tests/test_e2e_integration.py covering E2E runs, secret redaction, offline guarantee, and fallbacks."
+    },
+    {
+      "id": "TASK-003",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Ran full test suite using pytest; all 345 tests passed."
+    }
+  ]
+}

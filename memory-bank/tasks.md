@@ -103,7 +103,7 @@ This file tracks the status, dependencies, and references for all implementation
   - **Dependencies**: Task 2
 
 ## Close-Out
-- [ ] **Task 23 — End-to-End Tests**
+- [x] **Task 23 — End-to-End Tests**
   - **Description**: Integration test verifying complete run, secret redactions, fallback.
   - **Dependencies**: Tasks 15, 16, 17
   - **References**: [R3]
