@@ -1,62 +1,27 @@
-import os
-import ast
+import hashlib
 import time
 import logging
-from typing import List, Tuple, Any, Callable, Dict, Set
+from typing import List, Tuple, Any, Callable
 from gdg_yorku_submission.schemas import ReviewFinding, Location
 from gdg_yorku_submission.severity import Severity
 from gdg_yorku_submission.blast_radius.orbit_client import OrbitClient
+from gdg_yorku_submission.blast_radius.orbit_graph import OrbitQueryResult
+from gdg_yorku_submission.blast_radius.impact import build_impact_graph, summarize_blast
 
 logger = logging.getLogger(__name__)
 
-class PythonSymbolExtractor(ast.NodeVisitor):
-    def __init__(self) -> None:
-        # Maps symbol to set of line numbers in the file
-        self.symbols: Dict[str, Set[int]] = {}
 
-    def visit_Import(self, node: ast.Import) -> None:
-        for alias in node.names:
-            name = alias.name
-            self.symbols.setdefault(name, set()).add(node.lineno)
-            if alias.asname:
-                self.symbols.setdefault(alias.asname, set()).add(node.lineno)
-            # Support top-level sub-package imports
-            if "." in name:
-                parts = name.split(".")
-                self.symbols.setdefault(parts[0], set()).add(node.lineno)
-        self.generic_visit(node)
-
-    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
-        module = node.module or ""
-        # Also index the module itself if present
-        if module:
-            self.symbols.setdefault(module, set()).add(node.lineno)
-            if "." in module:
-                parts = module.split(".")
-                self.symbols.setdefault(parts[0], set()).add(node.lineno)
-                
-        for alias in node.names:
-            if alias.name != "*":
-                full_name = f"{module}.{alias.name}" if module else alias.name
-                self.symbols.setdefault(full_name, set()).add(node.lineno)
-                self.symbols.setdefault(alias.name, set()).add(node.lineno)
-                if alias.asname:
-                    self.symbols.setdefault(alias.asname, set()).add(node.lineno)
-                    full_asname = f"{module}.{alias.asname}" if module else alias.asname
-                    self.symbols.setdefault(full_asname, set()).add(node.lineno)
-        self.generic_visit(node)
-
-    def visit_ClassDef(self, node: ast.ClassDef) -> None:
-        self.symbols.setdefault(node.name, set()).add(node.lineno)
-        self.generic_visit(node)
-
-    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
-        self.symbols.setdefault(node.name, set()).add(node.lineno)
-        self.generic_visit(node)
-
-    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
-        self.symbols.setdefault(node.name, set()).add(node.lineno)
-        self.generic_visit(node)
+def redact_val(v: Any, redaction_ctx: Any) -> Any:
+    """Recursively redacts Orbit-derived strings to maintain prompt/data safety."""
+    if not redaction_ctx:
+        return v
+    if isinstance(v, str):
+        return redaction_ctx.redact(v)
+    elif isinstance(v, list):
+        return [redact_val(item, redaction_ctx) for item in v]
+    elif isinstance(v, dict):
+        return {k: redact_val(val, redaction_ctx) for k, val in v.items()}
+    return v
 
 
 def run_blast_radius_review(orch: Any) -> Tuple[List[ReviewFinding], str, str]:
@@ -69,175 +34,218 @@ def run_blast_radius_review(orch: Any) -> Tuple[List[ReviewFinding], str, str]:
 
     # 1. Configuration Check
     if not client.is_configured():
-        return [], "disabled", "Orbit / GitLab Knowledge Graph adapter unconfigured"
+        return [], "disabled", "Orbit client is unconfigured (missing API URL, token, or project path)."
 
-    # 2. Health check connection check
+    # 2. Connectivity check
     if not client.health_check():
-        return [], "unavailable", "Orbit / GitLab Knowledge Graph API is unavailable"
+        return [], "unavailable", "Orbit / GitLab Knowledge Graph API is unavailable."
+
+    # 3. Fetch Definitions + Calls + Imports + Vulnerabilities + Pipelines + Merge Requests
+    try:
+        definitions = client.fetch_definitions()
+    except Exception as e:
+        logger.error(f"Failed to fetch definitions: {e}")
+        return [], "unavailable", f"Failed to fetch definitions: {e}"
+
+    try:
+        calls = client.fetch_calls()
+    except Exception as e:
+        logger.error(f"Failed to fetch calls: {e}")
+        return [], "unavailable", f"Failed to fetch calls: {e}"
+
+    # For auxiliary queries, degrade to empty rather than failing the run
+    imports = OrbitQueryResult()
+    try:
+        imports = client.fetch_imports()
+    except Exception as e:
+        logger.warning(f"Failed to fetch imports (degraded to empty): {e}")
+
+    vulns = OrbitQueryResult()
+    try:
+        vulns = client.fetch_vulnerabilities()
+    except Exception as e:
+        logger.warning(f"Failed to fetch vulnerabilities (degraded to empty): {e}")
+
+    pipelines = OrbitQueryResult()
+    try:
+        pipelines = client.fetch_pipelines()
+    except Exception as e:
+        logger.warning(f"Failed to fetch pipelines (degraded to empty): {e}")
+
+    mrs = OrbitQueryResult()
+    try:
+        mrs = client.fetch_merge_requests()
+    except Exception as e:
+        logger.warning(f"Failed to fetch merge requests (degraded to empty): {e}")
+
+    # Build the impact graph
+    impact_graph = build_impact_graph(definitions, calls)
+    
+    # Get blast summaries ordered by blast size descending
+    summaries = summarize_blast(impact_graph)
 
     corpus = orch.get_corpus()
     findings: List[ReviewFinding] = []
 
-    # 3. Extract Python files from prompt_exposed corpus
-    python_files = [
-        cf for cf in corpus.values()
-        if cf.exposure_status == "prompt_exposed" and cf.normalized_path.endswith(".py")
-    ]
+    # Get counts for project-level elements
+    num_vulns = len(vulns.nodes_of_type("Vulnerability"))
+    num_pipelines = len(pipelines.nodes_of_type("Pipeline"))
+    num_mrs = len(mrs.nodes_of_type("MergeRequest"))
 
-    # Map of unique symbol name -> list of tuples (cf_file_object, redacted_line_number)
-    symbol_occurrences: Dict[str, List[Tuple[Any, int]]] = {}
-
-    # Extract symbols and map to coordinates
-    for cf in python_files:
-        try:
-            tree = ast.parse(cf.redacted_text)
-            extractor = PythonSymbolExtractor()
-            extractor.visit(tree)
-        except Exception as e:
-            logger.warning(f"Failed to parse AST for {cf.normalized_path}: {e}")
-            continue
-
-        # Keep only the most-qualified symbol (longest name string length) per line (Item 8)
-        # NOTE: This is a conscious design choice that avoids duplicate findings per import line.
-        # It silently lowers recall (e.g. 'Counter' is not queried next to 'defaultdict' on the same line),
-        # which is accepted to keep report findings consolidated.
-        line_symbols: Dict[int, List[str]] = {}
-        for symbol, lines in extractor.symbols.items():
-            for l in lines:
-                line_symbols.setdefault(l, []).append(symbol)
-
-        for l, symbols_on_line in line_symbols.items():
-            if not symbols_on_line:
-                continue
-            most_qualified = max(symbols_on_line, key=len)
-            symbol_occurrences.setdefault(most_qualified, []).append((cf, l))
-
-    # Bounded querying (Item 3)
-    unique_symbols = sorted(list(symbol_occurrences.keys()))
-    unique_symbols = unique_symbols[:20]  # Cap at 20 unique symbols
+    # Get run-specific RedactionContext to sanitize external data from Orbit
+    redaction_ctx = orch.get_redaction_context() if hasattr(orch, "get_redaction_context") else None
 
     start_time = time.time()
-    max_query_time = 2.0  # Max 2.0 seconds total elapsed wall-clock budget
-    query_cache: Dict[str, Any] = {}
+    max_processing_time = 2.0  # 2 seconds total budget
+    max_findings = 20
 
-    for symbol in unique_symbols:
-        elapsed = time.time() - start_time
-        if elapsed > max_query_time:
-            logger.warning(f"Orbit query wall-clock budget exceeded ({elapsed:.2f}s > {max_query_time}s); stopping queries.")
+    for summary in summaries:
+        # Check processing wall-clock budget
+        if time.time() - start_time > max_processing_time:
+            logger.warning("Blast radius review processing wall-clock budget exceeded; stopping.")
             break
 
-        try:
-            impact = client.query_symbol(symbol)
-            query_cache[symbol] = impact
-        except Exception as e:
-            logger.error(f"Error querying Orbit for symbol '{symbol}': {e}")
-            query_cache[symbol] = None
+        if len(findings) >= max_findings:
+            break
 
-    # Generate findings from cached query results
-    for symbol, impact in query_cache.items():
-        if not impact:
+        # 4. Resolve file path in corpus (case-insensitive, normalized forward-slash)
+        def_file_path = summary.definition.file_path
+        if not def_file_path:
+            continue
+        
+        normalized_path = def_file_path.replace("\\", "/").lower()
+        corpus_key = None
+        for k in corpus.keys():
+            if k.lower() == normalized_path:
+                corpus_key = k
+                break
+
+        if corpus_key is None:
+            # File wasn't uploaded / missing from corpus -> skip
             continue
 
-        has_impact = (
-            bool(impact.affected_projects) or
-            bool(impact.dependencies) or
-            bool(impact.pipelines) or
-            bool(impact.merge_requests) or
-            bool(impact.related_vulnerabilities)
-        )
-        if not has_impact:
+        corpus_file = corpus[corpus_key]
+        start_line = summary.definition.start_line
+        end_line = summary.definition.end_line
+
+        # Bounds check
+        if not (1 <= start_line <= end_line <= corpus_file.original_line_count):
+            logger.warning(
+                f"Coordinates out of bounds for {corpus_file.normalized_path}: "
+                f"[{start_line}, {end_line}] (original lines: {corpus_file.original_line_count}). Skipping."
+            )
             continue
 
-        # Construct descriptive claim containing dependencies if present (Item 7)
-        claim_parts = [f"Blast Radius for symbol '{symbol}':"]
-        if impact.affected_projects:
-            claim_parts.append(f"affects {len(impact.affected_projects)} projects {impact.affected_projects};")
-        if impact.dependencies:
-            claim_parts.append(f"depends on {impact.dependencies};")
-        if impact.pipelines:
-            failing = sum(1 for p in impact.pipelines if p.status == "failed")
-            claim_parts.append(f"{len(impact.pipelines)} pipelines ({failing} failed);")
-        if impact.merge_requests:
-            claim_parts.append(f"{len(impact.merge_requests)} merge requests;")
-        if impact.related_vulnerabilities:
-            claim_parts.append(f"{len(impact.related_vulnerabilities)} vulnerabilities;")
+        # Find imports of the file for enrichment
+        file_imports = [
+            node.get("import_path")
+            for node in imports.nodes_of_type("ImportedSymbol")
+            if node.get("file_path") and node.get("file_path").replace("\\", "/").lower() == normalized_path
+        ]
+        unique_imports = sorted(list(set(filter(None, file_imports))))
 
-        claim = " ".join(claim_parts).rstrip(";")
+        # Build claim with redacted Orbit fields
+        fqn_redacted = redact_val(summary.definition.fqn, redaction_ctx)
+        claim_parts = [
+            f"Changing `{fqn_redacted}` impacts {len(summary.dependent_ids)} definitions "
+            f"across {len(summary.dependent_files)} files (call-graph blast radius)."
+        ]
+        if unique_imports:
+            imports_redacted = redact_val(unique_imports[:5], redaction_ctx)
+            imports_list = ", ".join(imports_redacted)
+            claim_parts.append(f"File imports: {imports_list}.")
+        if num_vulns > 0 or num_pipelines > 0 or num_mrs > 0:
+            proj_parts = []
+            if num_vulns > 0:
+                proj_parts.append(f"{num_vulns} vulnerabilities")
+            if num_pipelines > 0:
+                proj_parts.append(f"{num_pipelines} pipelines")
+            if num_mrs > 0:
+                proj_parts.append(f"{num_mrs} merge requests")
+            claim_parts.append(f"Project has: {', '.join(proj_parts)}.")
 
-        # Determine severity, capped below the SEVERITY_FLOOR (max MEDIUM) (Item 2)
-        severity = Severity.INFO
-        if impact.related_vulnerabilities:
-            max_vuln_sev = Severity.INFO
-            for v in impact.related_vulnerabilities:
-                v_sev_str = v.severity.lower()
-                if v_sev_str == "critical":
-                    v_sev = Severity.CRITICAL
-                elif v_sev_str == "high":
-                    v_sev = Severity.HIGH
-                elif v_sev_str in ("medium", "major"):
-                    v_sev = Severity.MEDIUM
-                elif v_sev_str in ("low", "minor"):
-                    v_sev = Severity.LOW
-                else:
-                    v_sev = Severity.INFO
-                if v_sev > max_vuln_sev:
-                    max_vuln_sev = v_sev
-            severity = max_vuln_sev
+        claim = redact_val(" ".join(claim_parts), redaction_ctx)
 
-        if not impact.related_vulnerabilities and any(p.status == "failed" for p in impact.pipelines):
+        # Scale severity based on dependent definitions:
+        # - >= 10 dependents: HIGH
+        # - >= 3 dependents: MEDIUM
+        # - >= 1 dependents: LOW
+        num_deps = len(summary.dependent_ids)
+        if num_deps >= 10:
+            severity = Severity.HIGH
+        elif num_deps >= 3:
+            severity = Severity.MEDIUM
+        else:
+            severity = Severity.LOW
+
+        # If project contains active vulnerabilities, upgrade to MEDIUM
+        if num_vulns > 0 and severity < Severity.MEDIUM:
             severity = Severity.MEDIUM
 
-        # Cap severity below floor (Item 2)
+        # If project has failed pipelines, upgrade to MEDIUM
+        has_failed_pipelines = any(
+            n.get("status") == "failed"
+            for n in pipelines.nodes_of_type("Pipeline")
+        )
+        if has_failed_pipelines and severity < Severity.MEDIUM:
+            severity = Severity.MEDIUM
+
+        # ALWAYS clamp to MEDIUM max to respect severity floor constraint
+        # (This is load-bearing; ensures findings do not flood the critical lists)
         if severity > Severity.MEDIUM:
             severity = Severity.MEDIUM
 
-        # Generate findings for each file and mapped line coordinate (Item 4)
-        for cf, redacted_line in symbol_occurrences[symbol]:
-            original_line = cf.map_line(redacted_line)
+        # Location of the definition
+        # UPSTREAM DESIGN ASSUMPTION: Orbit indexes the original (unredacted) source repository.
+        # Therefore, coordinates returned by Orbit represent the original file coordinates,
+        # so we do NOT apply `map_line` to these coordinates.
+        location = Location(
+            path=corpus_file.normalized_path,
+            line_start=start_line,
+            line_end=end_line
+        )
 
-            # Existence/bounds checks (Item 4)
-            if original_line < 1 or original_line > cf.original_line_count:
-                logger.warning(
-                    f"Orbit symbol '{symbol}' line {original_line} out of bounds for '{cf.normalized_path}' "
-                    f"(original line count: {cf.original_line_count}). Skipping."
-                )
-                continue
+        # Deterministic stable provisional ID
+        anchor_str = f"blast_radius_agent:blast_radius:{corpus_file.normalized_path}:{start_line}:{end_line}:{summary.definition.fqn}"
+        prov_id = f"prov-blast-{hashlib.sha256(anchor_str.encode('utf-8')).hexdigest()[:12]}"
 
-            # Location of the symbol definition/import
-            location = Location(
-                path=cf.normalized_path,
-                line_start=original_line,
-                line_end=original_line
-            )
+        # Metadata format with redacted Orbit fields
+        metadata = {
+            "symbol": redact_val(summary.definition.fqn, redaction_ctx),
+            "rule_or_category": "blast_radius",
+            "dependent_fqns": redact_val(sorted([
+                impact_graph.defs[d].fqn
+                for d in summary.dependent_ids
+                if d in impact_graph.defs and impact_graph.defs[d].fqn
+            ])[:20], redaction_ctx),
+            "dependent_files": redact_val(sorted(list(summary.dependent_files))[:20], redaction_ctx),
+            "import_paths": redact_val(unique_imports[:20], redaction_ctx),
+            "pipelines": redact_val([
+                {"id": n.id, "status": n.get("status"), "web_url": n.get("web_url")}
+                for n in pipelines.nodes_of_type("Pipeline")
+            ], redaction_ctx),
+            "merge_requests": redact_val([
+                {"id": n.id, "title": n.get("title"), "state": n.get("state"), "web_url": n.get("web_url")}
+                for n in mrs.nodes_of_type("MergeRequest")
+            ], redaction_ctx),
+            "related_vulnerabilities": redact_val([
+                {"id": n.id, "severity": n.get("severity"), "description": n.get("description")}
+                for n in vulns.nodes_of_type("Vulnerability")
+            ], redaction_ctx)
+        }
 
-            # Deterministic stable provisional ID
-            import hashlib
-            anchor_str = f"blast_radius_agent:blast_radius:{cf.normalized_path}:{original_line}:blast_radius:{symbol}"
-            prov_id = f"prov-blast-{hashlib.sha256(anchor_str.encode('utf-8')).hexdigest()[:12]}"
-
-            # Metadata for the finding containing the raw structured data
-            metadata = {
-                "symbol": symbol,
-                "rule_or_category": "blast_radius",
-                "affected_projects": impact.affected_projects,
-                "dependencies": impact.dependencies,
-                "pipelines": [p.model_dump() for p in impact.pipelines],
-                "merge_requests": [mr.model_dump() for mr in impact.merge_requests],
-                "related_vulnerabilities": [v.model_dump() for v in impact.related_vulnerabilities]
-            }
-
-            finding = ReviewFinding(
-                id=prov_id,
-                source_agent="blast_radius_agent",
-                perspective="blast_radius",
-                severity=severity,
-                location=location,
-                claim=claim,
-                evidence_ref=[f"file:{cf.normalized_path}#{original_line}-{original_line}"],
-                status="active",
-                metadata=metadata
-            )
-            findings.append(finding)
+        finding = ReviewFinding(
+            id=prov_id,
+            source_agent="blast_radius_agent",
+            perspective="blast_radius",
+            severity=severity,
+            location=location,
+            claim=claim,
+            evidence_ref=[f"file:{corpus_file.normalized_path}#{start_line}-{end_line}"],
+            status="active",
+            metadata=metadata
+        )
+        findings.append(finding)
 
     return findings, "complete", ""
 

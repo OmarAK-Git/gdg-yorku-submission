@@ -213,10 +213,10 @@ def execute_query(
     req = urllib.request.Request(url, data=body, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            raw = json.loads(resp.read().decode("utf-8"))
+            raw = json.loads(resp.read().decode("utf-8-sig"))
     except urllib.error.HTTPError as e:
         try:
-            raw = json.loads(e.read().decode("utf-8"))
+            raw = json.loads(e.read().decode("utf-8-sig"))
         except Exception:
             raise OrbitQueryError(f"Orbit HTTP {e.code}") from e
     except Exception as e:

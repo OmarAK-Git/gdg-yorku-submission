@@ -4,37 +4,43 @@
   "current_task": null,
   "blocked": false,
   "blockers": [],
-  "last_updated": "2026-06-22",
+  "last_updated": "2026-06-23",
   "tasks": [
     {
       "id": "TASK-22-01",
       "status": "completed",
       "owner": "agent",
-      "notes": "Added urllib.parse and verified production HTTP paths with urllib.request.urlopen mock."
+      "notes": "Refactored OrbitClient to support query DSL traversals, Project anchoring, cheap health probe, and fake injection."
     },
     {
       "id": "TASK-22-02",
       "status": "completed",
       "owner": "agent",
-      "notes": "Capped blast-radius finding severities at MEDIUM to prevent floor flooding."
+      "notes": "Rewrote agent.py to build code ImpactGraph, summarize blast radius, and execute bounds/missing-file checks."
     },
     {
       "id": "TASK-22-03",
       "status": "completed",
       "owner": "agent",
-      "notes": "Implemented symbol deduplication, caching, count cap (20), and wall-clock query budget (2.0s)."
+      "notes": "Cleaned up exports, removed dead REST structures and ast parsing scan paths."
     },
     {
       "id": "TASK-22-04",
       "status": "completed",
       "owner": "agent",
-      "notes": "Integrated cf.map_line() coordinates mapping with out-of-bounds skipping and verification tests."
+      "notes": "Implemented strict redaction safety for Orbit metadata, robust severity scaling, and load-bearing clamp at MEDIUM."
     },
     {
       "id": "TASK-22-05",
       "status": "completed",
       "owner": "agent",
-      "notes": "Added claims/duplicate improvements, coordinator merge/omission tests, and determinism locks."
+      "notes": "Implemented thorough unit/integration test suite covering transport queries, non-identity lines, out of bounds skips, fail-safes, determinism, and E2E review."
+    },
+    {
+      "id": "TASK-22-06",
+      "status": "completed",
+      "owner": "agent",
+      "notes": "Addressed Round 3 refinements: self-sufficient calls coordinates join, query truncation limits warning, utf-8-sig BOM-tolerant response parsing, vulnerability severity cleanup, and non-overlapping coordinate regression tests."
     }
   ]
 }
