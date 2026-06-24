@@ -10,11 +10,11 @@
 - Task 24 (Real-LLM Smoke Script & Gate Review Updates) is completed and verified, establishing ADC-first auth for Gemini and Claude Vertex clients, updating models, capping Claude reasoning effort, surfacing warnings, and introducing redaction and live test suite coverage.
 
 ## Active Focus
-- Preparing documentation, setup instructions, architecture writeup, user instructions, and provenance checklist (Task 25).
+- Preparing documentation, setup instructions, architecture writeup, and user instructions (Task 25).
 
 ## Deferred Constraints (from Sprint 3 Gate)
 - **Tag for Task 13–14**: The correctness agent discards `sot_result.sot_text` and feeds the full file into the evidence plane, bypassing the README heading-allowlist. For the validator's evidence-existence check, we validate against the full loaded corpus file line count. This has been implemented successfully in Task 14.
 - **Tag for Task 16/24**: Correctness grounding and coordinate boundaries validation have been verified E2E via the demo sample tests; actual LLM correctness detection is verified in dry-run/fake mode and live smoke test structure in Task 24.
 
 ## Next Steps
-1. Finalize README setup writeup, demo recording, and provenance checklist (Tasks 25-26).
+1. Finalize README setup writeup and demo recording (Tasks 25-26).

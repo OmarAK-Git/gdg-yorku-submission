@@ -9,7 +9,7 @@
 
 **The problem.** LLMs are *plausible*, not *honest*. Pointed at a real codebase they hallucinate vulnerabilities that don't exist, silently drop the ones that do, agree with each other to look agreeable (sycophancy), leak any secret you feed them into logs and prompts, and fall over the moment an API rate-limits. A code reviewer that does any of these is worse than no reviewer, because it manufactures false confidence.
 
-**Our approach.** We treat the LLM as a *powerful but untrusted component* and wrap it in deterministic machinery that it cannot corrupt:
+**Approach.** Docket treats the LLM as a *powerful but untrusted component* and wraps it in deterministic machinery that it cannot corrupt:
 
 1. **A deterministic AST security scanner runs first**, so a complete baseline report exists before any LLM is consulted.
 2. **An adversarial debate** (Gemini *Defender* vs. Claude *Challenger*) pressure-tests every finding, with an **anti-sycophancy protocol** and a **scoring system where no agent can score its own proposals**.
@@ -18,11 +18,13 @@
 5. **Every generative finding is truth-checked against the real corpus** — a claim citing a file or line that doesn't exist is dropped as the hallucination it is.
 6. **A conservation validator** mathematically proves the final report dropped no high/critical finding, then a **never-fails terminal fallback** guarantees a report even if the coordinator, the network, and every model are down.
 
-**Google tech.** Vertex AI (Gemini 3.5 Flash for correctness/coordination/defense; Claude Opus 4.8 served *on Vertex* for the challenger — one ADC credential for both), and the **Google Agent Development Kit (ADK)** for multi-agent session/orchestration, behind a seam that degrades to pure Python if ADK is unavailable.
+**Google tech, happy path.** Antigravity was used as the agentic development environment for building and iterating on the app. At runtime, the happy path uses Vertex AI for Gemini 3.5 Flash correctness, coordination, and defense calls; Claude Opus 4.8 served on Vertex for the challenger; one ADC credential for both model families; Google ADK for multi-agent session/orchestration; and GitLab Orbit graph data for blast-radius analysis.
+
+**Fallback path.** If an ADK Runner model call fails, the Gemini client can fall back to direct Vertex/Google GenAI. If ADC-backed Claude on Vertex is rate-limited or unavailable, the Claude adapter can fall back to a direct Anthropic API key. If ADK is unavailable or its session API changes, the orchestration seam degrades to the pure-Python `InProcessOrchestrator`. If the adversarial debate fails or returns no usable result, the deterministic AST baseline still provides the security perspective. If Orbit fails or is unconfigured, the blast-radius perspective records a disabled/unavailable status and the report still completes. If coordinator compilation, validation, budget, or model output fails, the deterministic terminal report returns every input finding without spending LLM tokens.
 
 **Status.** Sprint 5 complete. **380 tests passing.** Live Vertex + live GitLab Orbit graph integration verified end-to-end.
 
-**With more time** (see [§12](#-what-wed-improve-with-more-time)): multi-language AST coverage, a learned merge/dedup model for the coordinator, incremental PR-diff reviews, and persistent debate memory across runs.
+**Future work** (see [§12](#-future-work)): the walls I actually hit and deferred — run-scoped budget/model control, structural (DAG-enforced) agent parallelism, convergence-based debate termination, a tamper-evident hash-chained conservation ledger, and actionable per-secret gate remediation.
 
 ---
 
@@ -39,7 +41,7 @@
 9. [Orbit Blast-Radius: Graph-Grounded Impact](#9-orbit-blast-radius-graph-grounded-impact)
 10. [Making the Coordinator Not Hallucinate](#10-making-the-coordinator-not-hallucinate)
 11. [How to Run It](#11-how-to-run-it)
-12. [What We'd Improve With More Time](#-what-wed-improve-with-more-time)
+12. [Future Work](#-future-work)
 13. [Submission Compliance](#13-submission-compliance)
 
 ---
@@ -86,7 +88,7 @@ flowchart TD
 
 **Design decision: deterministic spine, generative muscle.** Every irreversible decision (what's a secret, what counts as accounted-for, what the final IDs are, whether the report is valid) is made by deterministic code. The LLMs only *propose, argue, and prioritize*. This is what makes the system trustworthy: an LLM can be wrong without the *system* being wrong.
 
-**Design decision: the orchestration seam.** The pipeline runs on Google ADK's `InMemorySessionService` + session state (`AdkOrchestrator`), but every state read/write goes through an abstract `Orchestrator` base. If ADK is missing or its session API changes, we fall back to an identical pure-Python `InProcessOrchestrator` at runtime — and a durability-guard test pins the ADK-internal APIs we depend on so a breaking upgrade is caught in CI, not in the demo.
+**Design decision: the orchestration seam.** The pipeline runs on Google ADK's `InMemorySessionService` + session state (`AdkOrchestrator`), but every state read/write goes through an abstract `Orchestrator` base. If ADK is missing or its session API changes, Docket falls back to an identical pure-Python `InProcessOrchestrator` at runtime — and a durability-guard test pins the ADK-internal APIs the app depends on so a breaking upgrade is caught in CI, not in the demo.
 
 ---
 
@@ -94,11 +96,11 @@ flowchart TD
 
 Secrets are handled **before** intelligence, never during it.
 
-**Two decoupled scopes.** When we build the corpus we split files into:
+**Two decoupled scopes.** Corpus construction splits files into:
 - **Prompt-exposed** — real source the LLM should see.
 - **Gitignored / system-excluded** (`.env`, `.venv`, binaries) — *never* sent to a model, but *still scanned*.
 
-This split is the key insight people get wrong: most tools either scan only what they show the LLM (missing the `.env` that holds the real key) or show the LLM everything (leaking it). We **scan the entire corpus, prompt only a subset.**
+This split is the key insight people get wrong: most tools either scan only what they show the LLM (missing the `.env` that holds the real key) or show the LLM everything (leaking it). Docket **scans the entire corpus, prompts only a subset.**
 
 **Deterministic detection + system-wide redaction.** `run_secret_scan` runs a battery of regexes (AWS keys, Google API keys, Slack/GitHub/Stripe tokens, DB connection strings, PEM private keys, generic `KEY=…`/`password=…` assignments) over every file. Each hit is registered in a per-run `RedactionContext`, which then rewrites **every** corpus file's `redacted_text` — so a key that appears in `.env` is scrubbed from `config.py`, the logs, and the report too. The fingerprint is a salted hash, so the same secret is consistently masked without ever storing the plaintext.
 
@@ -112,7 +114,7 @@ This split is the key insight people get wrong: most tools either scan only what
 
 When you feed a model a repo, the repo's *contents* are untrusted input that the model may mistake for *instructions*. A file literally named `"ignore previous instructions.md"` is a classic break.
 
-Our `build_evidence_plane` wraps all untrusted code in a structured block tagged with a **fresh 128-bit random nonce per run**:
+`build_evidence_plane` wraps all untrusted code in a structured block tagged with a **fresh 128-bit random nonce per run**:
 
 ```
 <evidence_plane nonce="a3f…9c">
@@ -175,7 +177,7 @@ Requiring *both* convergence and stability prevents a premature stop while a hig
 
 ## 7. Beating LLM Sycophancy
 
-Sycophancy — models agreeing to seem agreeable — is the single biggest threat to a debate's value. If both agents converge on "looks fine," the debate is theater. We attack it on three fronts:
+Sycophancy — models agreeing to seem agreeable — is the single biggest threat to a debate's value. If both agents converge on "looks fine," the debate is theater. Docket attacks it on three fronts:
 
 1. **The Independence Protocol** (`ANTI_SYCOPHANCY`, injected into every system prompt):
    - *Form your own analysis **before** seeing your peer's position.*
@@ -203,9 +205,9 @@ groundedness_mult   1.0 if it cites a real location, else 0.2   (5× penalty for
 acceptance_factor   accept 1.0 · modify 0.6 · reject 0.0
 ```
 
-This rewards exactly what we want: **severe, well-grounded findings that survive an adversary.** An ungrounded claim is slashed to 20%; a rejected claim earns nothing.
+This rewards the desired behavior: **severe, well-grounded findings that survive an adversary.** An ungrounded claim is slashed to 20%; a rejected claim earns nothing.
 
-**The no-self-scoring guarantee.** Points flow *across* the aisle: the Defender scores the Challenger's proposals (Challenger earns the points) and vice-versa. Real LLMs occasionally try to score their *own* proposals — we saw exactly this in live runs (`Skipping invalid self-score: Challenger (scorer) cannot score their own proposal …`). Rather than crash the loop into the AST fallback, two independent guards drop the invalid score and continue:
+**The no-self-scoring guarantee.** Points flow *across* the aisle: the Defender scores the Challenger's proposals (Challenger earns the points) and vice-versa. Real LLMs occasionally try to score their *own* proposals — live runs showed exactly this (`Skipping invalid self-score: Challenger (scorer) cannot score their own proposal …`). Rather than crash the loop into the AST fallback, two independent guards drop the invalid score and continue:
 
 - **Convention guard** — a scorer may only score IDs prefixed for the *other* side (`C-` vs `D-`).
 - **Schema guard** — even if the prefix lies, the resolved proposal's `adversary` field must differ from the scorer.
@@ -218,14 +220,14 @@ Both fire with a warning and skip; the debate proceeds with integrity intact. (T
 
 A finding's severity isn't just *what* is wrong — it's *how far the damage spreads*. The Orbit agent answers "if I change this symbol, what breaks?" using GitLab's **Orbit Knowledge Graph** instead of guessing.
 
-**The genius is in the direction.** Orbit indexes the repo into `Definition` nodes (functions/classes with file + line spans) joined by `CALLS` edges (caller → callee). The naive question is "what does this function call?" The *useful* question is the reverse: **"who calls this function?"** So we walk `CALLS` **backwards** — the reverse of every edge is "who depends on me" — and compute the transitive closure up to *N* hops (`ImpactGraph.dependents`). That transitive set, deduplicated across files, *is* the blast radius.
+**The genius is in the direction.** Orbit indexes the repo into `Definition` nodes (functions/classes with file + line spans) joined by `CALLS` edges (caller → callee). The naive question is "what does this function call?" The *useful* question is the reverse: **"who calls this function?"** Docket walks `CALLS` **backwards** — the reverse of every edge is "who depends on me" — and computes the transitive closure up to *N* hops (`ImpactGraph.dependents`). That transitive set, deduplicated across files, *is* the blast radius.
 
 ```
 forward  CALLS:  db_connect  →  (what it calls)
 reverse  CALLS:  db_connect  ←  pay() ← checkout() ← api_handler()   ← BLAST RADIUS
 ```
 
-**Grounded, not guessed.** The query DSL (`graph_query` v2.9.1), the response envelope, and the edge shape were all reverse-engineered from **live captures** in `.orbit-captures/`, then verified against the real `POST /api/v4/orbit/query` endpoint with Bearer-PAT auth. We don't invent node properties we haven't seen on the wire.
+**Grounded, not guessed.** The query DSL (`graph_query` v2.9.1), the response envelope, and the edge shape were all reverse-engineered from **live captures** in `.orbit-captures/`, then verified against the real `POST /api/v4/orbit/query` endpoint with Bearer-PAT auth. The implementation does not invent node properties that were not seen on the wire.
 
 **Fail-safe by contract.** Orbit failures degrade gracefully: a transport error or error-envelope raises `OrbitQueryError`, the specialist records `failed`, and the run continues with the other perspectives — never a crash. Self-recursion edges are dropped (a function calling itself isn't a blast relationship), and large result sets truncate at 500 rows with an explicit `…reached the limit of 500 rows and was truncated` warning rather than silently lying about completeness.
 
@@ -233,9 +235,9 @@ reverse  CALLS:  db_connect  ←  pay() ← checkout() ← api_handler()   ← B
 
 ## 10. Making the Coordinator Not Hallucinate
 
-The coordinator merges, deduplicates, and ranks findings from all three specialists into one report — the stage most prone to LLM cognitive overload and silent loss. We make hallucination *structurally detectable and recoverable*.
+The coordinator merges, deduplicates, and ranks findings from all three specialists into one report — the stage most prone to LLM cognitive overload and silent loss. Docket makes hallucination *structurally detectable and recoverable*.
 
-**Generative grounding (truth, not format).** Any finding the debate generates carries a free-text citation. `resolve_generative_citation` parses the citation *leniently* (`#14-37`, `lines 14-37`, `line 23`, or a bare path all work) but checks truth *strictly*: the path must match a real corpus key, and the line range must satisfy `1 ≤ start ≤ end ≤ file_length`. A citation to a file that doesn't exist, or to lines past the end of the file, returns `None` — **that is the hallucination signal, and the finding is dropped.** We deliberately don't punish ugly formatting (that just loses real findings); we punish *untruth*.
+**Generative grounding (truth, not format).** Any finding the debate generates carries a free-text citation. `resolve_generative_citation` parses the citation *leniently* (`#14-37`, `lines 14-37`, `line 23`, or a bare path all work) but checks truth *strictly*: the path must match a real corpus key, and the line range must satisfy `1 ≤ start ≤ end ≤ file_length`. A citation to a file that doesn't exist, or to lines past the end of the file, returns `None` — **that is the hallucination signal, and the finding is dropped.** The implementation deliberately does not punish ugly formatting, which can lose real findings; it punishes *untruth*.
 
 **The conservation validator** (`validate_report_invariants`) is the coordinator's polygraph. After compilation it proves, by set arithmetic over input vs. output IDs:
 - **No forbidden omission** — every high/critical input finding appears in the output (omitting one is an error, full stop).
@@ -310,13 +312,48 @@ python scripts/check_commit_window.py    # asserts every commit date ≥ 2026-06
 
 ---
 
-## 🔭 What We'd Improve With More Time
+## 🔭 Future Work
 
-- **Multi-language AST coverage.** The deterministic baseline is Python-only today; the architecture (rule modules → seed proposals) extends cleanly to a tree-sitter front-end for JS/TS, Go, and Java.
-- **A learned coordinator merge model.** Merge/dedup is currently rule-assisted; a fine-tuned ranker with the conservation validator as a hard constraint would improve dedup precision without sacrificing the never-drop guarantee.
-- **Incremental PR-diff reviews.** Review only the changed hunks + their Orbit blast radius, for fast CI-gating instead of whole-repo passes.
-- **Persistent debate memory.** Cache resolved findings across runs so a previously-litigated `contested` item carries its history forward instead of re-debating from scratch.
-- **Richer Orbit context.** Wire the already-scaffolded Vulnerability / Pipeline / MergeRequest traversals once we have live captures, to fold real CVE and CI signal into severity.
+An honest list of walls I hit during the build and deferred — not a generic wishlist.
+
+- **Run-scoped resource & budget control.** Model selection per agent and the
+debate round budget are fixed at build time. The security debate hard-caps at
+5 rounds regardless of how contested the diff actually is — in the sample
+report it stopped on "hard cap reached," not on resolution. Next: a per-run
+manifest that sets model choice per tier (escalate the security debate to a
+pricier model on high-stakes diffs, keep correctness cheap), a token/cost
+ceiling the orchestrator respects, and the round cap as a knob instead of a
+constant. Prereq: surface per-run token/cost accounting in the report — you
+can't govern spend you don't measure.
+
+- **Structural parallelism, not incidental.** The agents currently *appear* to
+run in parallel, but it's a timing accident: the security pass is the long
+pole, so correctness and blast-radius finish underneath it while it's still
+running. There's asyncio in the orchestration, but the concurrency isn't
+guaranteed by design — shift the relative runtimes and the overlap vanishes.
+Next: model the agents as an explicit dependency DAG (gate precedes everything;
+correctness, blast-radius, and security fan out independently; the conservation
+ledger joins on all three) with a real join barrier, so concurrency is
+structural rather than emergent.
+
+- **Convergence-based debate termination.** The challenger/defender debate stops
+on a hard 5-round cap. In the sample run it hit that cap with the score still
+diverging (challenger 17 · defender 12.6) — cut off, not resolved. Next:
+terminate when a round yields no new findings and no score delta (a round that
+doesn't move the verdict is a wasted round), keeping the hard cap only as a
+backstop.
+
+- **Tamper-evident conservation ledger.** The ledger enforces
+`Inputs == Included ∪ Merged ∪ Omitted ∪ Contested` at generation time, which
+proves nothing was silently dropped. It isn't tamper-evident after the fact.
+Next: hash-chain the entries (append-only, each referencing the prior hash) so
+the conservation guarantee is independently verifiable and the trail immutable.
+
+- **Actionable gate remediation.** The pre-flight secret gate emits placeholder
+guidance ("verify finding at line X"). Next: real remediation per secret type —
+rotate the key, move it to a secret manager, scrub history (the sample repo's
+.gitignore only excludes .env, so a committed key likely still lives in git
+history).
 
 ---
 
@@ -326,7 +363,7 @@ python scripts/check_commit_window.py    # asserts every commit date ≥ 2026-06
 |---|---|
 | **Public GitHub repo, all commits within competition window (opens 2026-06-17)** | Enforced automatically by `scripts/check_commit_window.py` (CI guard rejects any commit/author date `< 2026-06-17`). |
 | **Video demo, end-to-end** | Recorded against the live web app: upload → secret gate → debate → blast radius → validated report. |
-| **One-page written summary** | [§ One-Page Summary](#-one-page-summary-for-judges) above (problem · architecture decisions · Google tech & why · what we'd improve). |
+| **One-page written summary** | [§ One-Page Summary](#-one-page-summary-for-judges) above (problem · architecture decisions · Google tech & why · future work). |
 
 ---
 
@@ -336,5 +373,4 @@ Built solo by **Omer Abdulkareem** for the Google × GDG-on-Campus York Universi
 
 ## License
 
-MIT — see `NOTICE.md`.
-```
+MIT.

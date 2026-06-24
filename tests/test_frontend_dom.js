@@ -222,33 +222,58 @@ assert.strictEqual(documentMock.getElementById('dashboard-content').classList.co
 const correctnessBadge = documentMock.getElementById('badge-correctness-status');
 assert.strictEqual(correctnessBadge.textContent, 'COMPLETE');
 
-// Check counts are updated
+// Check counts are updated. tab-count-high mirrors high_critical_findings.length.
 const highTabCount = documentMock.getElementById('tab-count-high');
-assert.strictEqual(highTabCount.textContent, 2);
+assert.strictEqual(highTabCount.textContent, MOCK_DEMO_REPORT.high_critical_findings.length);
 
-// Test Case 3: Check findings rendering and filtering
+// Test Case 3: Check findings rendering and filtering.
+// These expectations are derived from MOCK_DEMO_REPORT (a verbatim snapshot of a real
+// driftstore.zip review) rather than hard-coded, so regenerating the snapshot does not
+// break the test as long as the render logic in renderFindingsList still holds. We
+// replicate the two predicates that drive that function: perspective matching and the
+// high/critical filter, plus the ledger-provenance divider rule.
 const findingsList = documentMock.getElementById('findings-list');
-// Initial load shows 5 active findings, then a ledger-provenance divider plus the
-// mock's 3 parsed-out snapshots (1 omitted + 2 merged constituents) = 9 children.
-assert.strictEqual(findingsList.children.length, 9);
 
-// Toggle the "correctness" perspective filter on (multi-select buttons)
+const filterPerspective = (f) => {
+  if (f.source_agent === 'preflight_secret_gate') return 'preflight';
+  if (f.perspective === 'blast_radius') return 'blast_radius';
+  return f.perspective;
+};
+const isHighCritical = (s) => s === 'high' || s === 'critical';
+const provenanceSnapshots = [
+  ...(MOCK_DEMO_REPORT.omitted_findings || []),
+  ...(MOCK_DEMO_REPORT.merged_constituents || []),
+];
+// children = matching active findings + (divider + matching provenance) when any provenance shows.
+const expectedChildren = (activeFindings, provenance) =>
+  activeFindings.length + (provenance.length > 0 ? 1 + provenance.length : 0);
+
+// All findings, no perspective filter.
+const allExpected = expectedChildren(MOCK_DEMO_REPORT.findings, provenanceSnapshots);
+assert.strictEqual(findingsList.children.length, allExpected);
+
+// Toggle the "correctness" perspective filter on (multi-select buttons).
 filterCorrectness.dispatchEvent('click');
-// Correctness count should be 2
-assert.strictEqual(findingsList.children.length, 2);
+const corrFindings = MOCK_DEMO_REPORT.findings.filter(f => filterPerspective(f) === 'correctness');
+const corrProvenance = provenanceSnapshots.filter(f => filterPerspective(f) === 'correctness');
+assert.strictEqual(findingsList.children.length, expectedChildren(corrFindings, corrProvenance));
 
-// Click "All" to reset the perspective filter (5 active + divider + 3 provenance)
+// Click "All" to reset the perspective filter.
 filterAll.dispatchEvent('click');
-assert.strictEqual(findingsList.children.length, 9);
+assert.strictEqual(findingsList.children.length, allExpected);
 
-// Flip tab to High/Critical: 2 high/critical active + divider + 2 high merged constituents
-// (the omitted snapshot is low severity, so it is filtered out of this tab).
+// Flip tab to High/Critical: high_critical_findings + divider + high/critical provenance
+// (lower-severity snapshots are filtered out of this tab).
 tabs[1].dispatchEvent('click'); // Click tab-high
-assert.strictEqual(findingsList.children.length, 5); // cb1a79f..., e302061..., + 2 merged constituents
+const highProvenance = provenanceSnapshots.filter(f => isHighCritical(f.severity));
+assert.strictEqual(
+  findingsList.children.length,
+  expectedChildren(MOCK_DEMO_REPORT.high_critical_findings, highProvenance)
+);
 
-// Flip tab back to All (5 active + divider + 3 provenance)
+// Flip tab back to All.
 tabs[0].dispatchEvent('click'); // Click tab-all
-assert.strictEqual(findingsList.children.length, 9);
+assert.strictEqual(findingsList.children.length, allExpected);
 
 // Test Case 4: Zero Secret Leakage schema and delegation assertion (REQ-17-2)
 // NOTE: Client-side UI trusts the upstream coordinator/agents for credential redaction (delegated to Task 7).

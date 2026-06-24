@@ -234,7 +234,7 @@ Pinned sample (`samples/driftstore`) ships: `SPEC.md` with a known divergence; a
 - **Segment B (out-of-band integrity test):** a separate CLI invocation (`python -m gdg_yorku_submission.demo_hooks drop-high ...`) runs the validator against a deliberately corrupted in-memory report and prints the rejection. This hook MUST NOT be reachable over HTTP.
 
 ### Deliverables
-Public repo, all commits in-window (**author and commit dates** ≥ 2026-06-17); README + `NOTICE.md` provenance table; recorded end-to-end demo; one-page rubric-aligned writeup.
+Public repo, all commits in-window (**author and commit dates** ≥ 2026-06-17); README; recorded end-to-end demo; one-page rubric-aligned writeup.
 
 ## Risks and Mitigations
 - **Debate consumes too much time** → deterministic baseline already shipped; debate is a pure upgrade; Day-4 decision is "layer debate or stop," never "build a security perspective from scratch."
@@ -247,5 +247,5 @@ Public repo, all commits in-window (**author and commit dates** ≥ 2026-06-17);
 - **Gitignore semantics** → root-only V1 via `pathspec`, nested documented as V1.1.
 - **Orbit instability** → optional, clean disabled status, true cut.
 - **Budget overrun** → `RunBudget` + leases, separate Claude cap, one reserved coordinator attempt, cheap dev mode, cached sample uploads.
-- **Commit-window / provenance disqualification** → fresh repo; copy reused code as *new* in-window commits (do NOT cherry-pick/rebase preserving original author dates); verify with `git log --format='%ai %ci'`; `NOTICE.md` documents reuse as in-window engineering.
+- **Commit-window disqualification** → fresh repo; copy reused code as *new* in-window commits (do NOT cherry-pick/rebase preserving original author dates); verify with `git log --format='%ai %ci'`.
 - **Zero-slack solo schedule (newborn at home)** → Orbit dropped from the critical path; Day 8 reserved for recording + fixes only; the always-valid degraded path means an unfinished debate still yields a submittable system.

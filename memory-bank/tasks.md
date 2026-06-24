@@ -3,8 +3,8 @@
 This file tracks the status, dependencies, and references for all implementation tasks.
 
 ## Sprint 1: Walking Skeleton & Schema Configuration
-- [x] **Task 1 — Fresh Repo Baseline + Provenance Guard**
-  - **Description**: Establish git log commit window guard (`scripts/check_commit_window.py` for commits ≥ 2026-06-17) and create `NOTICE.md` provenance table.
+- [x] **Task 1 — Fresh Repo Baseline + Commit Window Guard**
+  - **Description**: Establish git log commit window guard (`scripts/check_commit_window.py` for commits ≥ 2026-06-17).
   - **Dependencies**: None
   - **References**: [R10]
 - [x] **Task 2 — Core Schemas + Severity Mapping**
@@ -111,8 +111,8 @@ This file tracks the status, dependencies, and references for all implementation
   - **Description**: Live run wrapper script for dry run or actual integration tests.
   - **Dependencies**: Tasks 12, 15, 16
   - **References**: [R10]
-- [/] **Task 25 — README + Writeup + Provenance**
-  - **Description**: Documentation: setup, architecture, provenance table, user instructions.
+- [/] **Task 25 — README + Writeup**
+  - **Description**: Documentation: setup, architecture, and user instructions.
   - **Dependencies**: Stable core
   - **References**: [R10]
 - [ ] **Task 26 — Evidence + Recording Prep**

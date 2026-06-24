@@ -11,11 +11,11 @@
 
 ## Tasks
 
-### Task 1 — Fresh Repo Baseline + Provenance Guard — S — deps: none — [R10]
+### Task 1 — Fresh Repo Baseline + Commit Window Guard — S — deps: none — [R10]
 - **Test first:** `git log --format='%ai %ci'` shows **both author and commit** dates ≥ 2026-06-17 for every commit; `scripts/check_commit_window.py` fails on any earlier date.
-- **Files:** `README.md`, `NOTICE.md`, `.gitignore`, `pyproject.toml`, `src/gdg_yorku_submission/__init__.py`, `tests/`, `scripts/check_commit_window.py`, `tests/test_commit_window.py`.
-- **[R10]** `NOTICE.md` provenance table: component, source project/path, copied|adapted|new, license/ownership, date copied, notes; old Git history is NOT imported. Checker enforces author/commit dates only; provenance reviewed manually pre-submission.
-- **Done when:** `pytest` runs; window checker passes; README + NOTICE state window + provenance.
+- **Files:** `README.md`, `.gitignore`, `pyproject.toml`, `src/gdg_yorku_submission/__init__.py`, `tests/`, `scripts/check_commit_window.py`, `tests/test_commit_window.py`.
+- **[R10]** Old Git history is NOT imported. Checker enforces author/commit dates.
+- **Done when:** `pytest` runs; window checker passes; README states the commit-window rule.
 
 ### Task 2 — Core Schemas + Severity Mapping — M — deps: 1
 - **Test first:** valid finding/status/report pass; invalid severity rejected; blocker/major/minor → critical/high/medium/low mapping table unit-tested; reporting-floor constant = `high`.
@@ -133,9 +133,9 @@
 - **Files:** `scripts/run_sample_review.py`, `tests/test_run_sample_script.py`.
 - **Done when:** close-out smoke task ships even if the debate (Task 21) is cut on Day 4.
 
-### Task 25 — README + One-Page Writeup + Provenance — M — deps: stable core — [R10]
-- **Test first:** checklist — setup, run, architecture, Google-tech usage, ADK-seam note, supported-language list, provenance table (`NOTICE.md`), demo instructions, limitations, the validator/terminal-report guarantee.
-- **Files:** `README.md`, `NOTICE.md`, `docs/one-page-writeup.md`, `docs/architecture.md`.
+### Task 25 — README + One-Page Writeup — M — deps: stable core — [R10]
+- **Test first:** checklist — setup, run, architecture, Google-tech usage, ADK-seam note, supported-language list, demo instructions, limitations, the validator/terminal-report guarantee.
+- **Files:** `README.md`, `docs/one-page-writeup.md`, `docs/architecture.md`.
 
 ### Task 26 — Evidence + Recording Prep — M — deps: 17–25
 - **Test first:** manual dry run from a clean checkout.

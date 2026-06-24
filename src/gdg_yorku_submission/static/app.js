@@ -1,243 +1,1044 @@
-// Mock Report Data for manual demo showcase and testing without live server uploads
+// Mock Report Data for the manual demo showcase. This is a verbatim snapshot of a
+// real live-Vertex review of samples/driftstore.zip (ADK coordinator + adversarial
+// Claude-vs-Gemini security debate), captured so the dashboard can be shown without
+// a live run. Regenerate with: python scripts/run_sample_review.py --real --with-debate.
 const MOCK_DEMO_REPORT = {
   "run_metadata": {
-    "orchestrator_type": "AdkOrchestrator",
-    "start_time": "2026-06-21T17:30:15.123-04:00",
-    "duration_ms": 2345,
-    "compilation_mode": "coordinated",
-    "budget_remaining": "85.2% token allocation",
+    "adk_orchestrator_status": "ADK SessionService initialized successfully.",
+    "budget": {
+      "max_total_tokens": 200000,
+      "max_gemini_tokens": 160000,
+      "max_claude_tokens": 40000,
+      "max_llm_calls": 20,
+      "max_cost_usd": 4.0,
+      "used_total_tokens": 37593,
+      "used_gemini_tokens": 21171,
+      "used_claude_tokens": 16422,
+      "used_llm_calls": 6,
+      "used_cost_usd": 0.09768195
+    },
+    "adk_runner_executed": true,
+    "unsupported_language_count": 0,
+    "unparseable_file_count": 0,
     "debate_transcript": {
       "engaged": true,
-      "seed_findings": 2,
-      "stop_reason": "consensus_reached",
-      "final_score": { "challenger": 2.0, "defender": 1.0 },
-      "scoreboard": [
-        { "round": 1, "challenger": 0.0, "defender": 0.0 },
-        { "round": 2, "challenger": 2.0, "defender": 1.0 }
-      ],
+      "seed_findings": 6,
+      "stop_reason": "Both adversaries returned empty proposals and all previous round disagreements were addressed.",
       "rounds": [
         {
           "round": 1,
           "messages": [
-            { "role": "challenger", "message": "Proposed: Missing auth decorator on write route '/admin/delete-product' — attacker-reachable destructive endpoint. (Severity: high)" },
-            { "role": "challenger", "message": "Proposed: Unsafe pickle.loads on request query data enables arbitrary code execution. (Severity: low)" },
-            { "role": "defender", "message": "Proposed: The '/admin/delete-product' route may be guarded by upstream gateway middleware not visible in this corpus — request grounded evidence before scoring high. (Severity: info)" },
-            { "role": "defender", "message": "Proposed: 'requests' is pinned to 2.25.1; flag as outdated dependency (CVE-2022-28108). (Severity: info)" }
+            {
+              "role": "challenger",
+              "message": "Proposed: Missing authorization: HTTP write route lacks any auth decorator or dependency. (Severity: Severity.HIGH)"
+            },
+            {
+              "role": "challenger",
+              "message": "Proposed: Path traversal risk: request input is used directly in a path open or join operation without a normalize-and-root check. (Severity: Severity.HIGH)"
+            },
+            {
+              "role": "challenger",
+              "message": "Proposed: SQL Injection risk: DB execute call receives a non-literal query expression constructed with f-string, concat, or format. (Severity: Severity.HIGH)"
+            },
+            {
+              "role": "challenger",
+              "message": "Proposed: SSL verification disabled: HTTP call contains verify=False. (Severity: Severity.HIGH)"
+            },
+            {
+              "role": "challenger",
+              "message": "Proposed: Command injection risk: subprocess call with shell=True receives a non-literal command argument. (Severity: Severity.HIGH)"
+            },
+            {
+              "role": "challenger",
+              "message": "Proposed: Unsafe deserialization risk: pickle load/loads called on non-literal data. (Severity: Severity.HIGH)"
+            },
+            {
+              "role": "defender",
+              "message": "Proposed: Missing Administrator Access Control on Payment Payout Endpoint (Severity: Severity.HIGH)"
+            },
+            {
+              "role": "defender",
+              "message": "Proposed: Disabled SSL Verification on External Payment Provider Call (Severity: Severity.MEDIUM)"
+            },
+            {
+              "role": "defender",
+              "message": "Proposed: Database Table Name Correctness Divergence (Severity: Severity.LOW)"
+            },
+            {
+              "role": "defender",
+              "message": "Proposed: Faux Vulnerabilities: Non-exploitable SQL, Path Traversal, and Shell Injection Points (Severity: Severity.INFO)"
+            },
+            {
+              "role": "defender",
+              "message": "Proposed: Broken Runtime Logic and Deserialization Crash Bug (Severity: Severity.LOW)"
+            },
+            {
+              "role": "defender",
+              "message": "Proposed: Hardcoded Redacted Secret Placeholder (Severity: Severity.INFO)"
+            }
           ]
         },
         {
           "round": 2,
           "messages": [
-            { "role": "defender", "message": "Scored C-R1-P1: modify — concede the route lacks an in-repo auth dependency; downgrade my middleware assumption. Auth finding stands." },
-            { "role": "defender", "message": "Scored C-R1-P2: accept — pickle.loads on untrusted input is indefensible; finding survives." },
-            { "role": "challenger", "message": "Scored D-R1-P1: reject — no Depends(...) or decorator exists at src/app.py#54-57; the gateway claim is ungrounded in the corpus." },
-            { "role": "challenger", "message": "Scored D-R1-P2: reject — the requests pin is a maintenance concern, not on an exploitable path in this codebase; out-of-scope for the security floor." }
+            {
+              "role": "defender",
+              "message": "Scored C-R1-P1: accept (The route completely lacks any authorization mechanism, directly violating the SPEC.md security requirement that payment endpoints must require administrator level access.)"
+            },
+            {
+              "role": "defender",
+              "message": "Scored C-R1-P2: reject (FastAPI automatically validates and coerces the user_id path/query parameter to a Python int. Any input with path traversal sequences (such as '../') is blocked with a 422 Validation Error before the route executes. This makes path traversal impossible.)"
+            },
+            {
+              "role": "defender",
+              "message": "Scored C-R1-P3: reject (Because user_id is strictly validated as an integer, no arbitrary SQL commands can be injected. While string formatting in SQL is bad practice, this specific instance is completely unexploitable.)"
+            },
+            {
+              "role": "defender",
+              "message": "Scored C-R1-P4: accept (Disabling SSL verification violates the SPEC.md requirement to verify SSL certificates on external payment provider calls and exposes the system to MITM attacks.)"
+            },
+            {
+              "role": "defender",
+              "message": "Scored C-R1-P5: reject (Since user_id is coerced into an integer, it cannot contain command separators or shell metacharacters, making shell command injection impossible.)"
+            },
+            {
+              "role": "defender",
+              "message": "Scored C-R1-P6: reject (The amount parameter is strictly validated as a float. Passing a float to pickle.loads raises a TypeError and crashes, which is a logic/denial-of-service bug, not an exploitable remote code execution path.)"
+            },
+            {
+              "role": "defender",
+              "message": "Proposed: Leverage FastAPI's built-in type validation as a baseline security defense for typed inputs (int, float) rather than adding complex, redundant sanitization libraries. (Severity: Severity.INFO)"
+            },
+            {
+              "role": "defender",
+              "message": "Proposed: Implement lightweight token-based or API key-based admin authorization via FastAPI Depends to fulfill SPEC.md security requirements with minimal complexity. (Severity: Severity.HIGH)"
+            },
+            {
+              "role": "defender",
+              "message": "Proposed: Align database query correctness by querying the 'transactions' table instead of 'ledger'. (Severity: Severity.MEDIUM)"
+            },
+            {
+              "role": "challenger",
+              "message": "Scored D-R2-P1: reject (This overstates type coercion as a security guarantee and is used to justify dropping my SQL/shell/path-traversal findings. Three problems: (1) The f-string SQL query at src/app.py:20, shell=True at src/app.py:27, and unsanitized path at src/app.py:24 are insecure CODE PATTERNS regardless of the current type signature. (2) Type signatures are not a security boundary you can rely on permanently — the moment user_id becomes str, Optional, or a Pydantic model field, every one of these becomes directly exploitable with zero other code changes. (3) pickle.loads(amount) at src/app.py:30 is genuinely dangerous: 'float' validation only protects if amount stays a float; the pattern of deserializing request-derived data is the vulnerability. Citing FastAPI coercion to suppress these findings is exactly the brittle reasoning a red-team must reject.)"
+            },
+            {
+              "role": "challenger",
+              "message": "Scored D-R2-P2: accept (Correct remediation grounded at src/app.py:13 — the /payout route has no Depends() auth dependency, directly violating SPEC.md 'All payment-related endpoints must require administrator level access.' A FastAPI Depends-based admin check is the appropriate fix for the highest-severity confirmed flaw.)"
+            },
+            {
+              "role": "challenger",
+              "message": "Scored D-R2-P3: modify (Agree on the table-name correctness fix (ledger -> transactions per SPEC.md and src/app.py:20), but the severity framing buries the security issue. The query must be PARAMETERIZED (cursor.execute with ? placeholder and a params tuple), not just retargeted to the correct table. Renaming the table while keeping the f-string leaves the exact insecure pattern in place.)"
+            },
+            {
+              "role": "challenger",
+              "message": "Proposed: Type-coercion is not a durable security control for the injection sinks. The /payout signature (user_id: int, amount: float) is the ONLY thing currently shielding the f-string SQL (src/app.py:20), shell=True call (src/app.py:27), path open (src/app.py:24), and pickle.loads (src/app.py:30). There is no defense-in-depth: a single signature change to str/Optional/Pydantic model re-arms all four sinks simultaneously. Each sink must be independently hardened (parameterized query, no shell=True, path normalization+root check, remove pickle). (Severity: Severity.HIGH)"
+            },
+            {
+              "role": "challenger",
+              "message": "Proposed: pickle.loads on request-derived data (src/app.py:30) is a latent RCE primitive that must be removed outright, not merely reclassified as a crash bug. The defender's 'it just raises TypeError' argument depends entirely on the float type annotation holding forever. If amount ever carries bytes (e.g., signature change, or a future endpoint reusing this logic), pickle.loads enables arbitrary code execution via malicious pickle payloads. The correct remediation is to delete the pickle call entirely or replace with a safe format (json). (Severity: Severity.HIGH)"
+            }
+          ]
+        },
+        {
+          "round": 3,
+          "messages": [
+            {
+              "role": "defender",
+              "message": "Scored C-R2-P1: reject (This proposal demands heavy-handed remediation of four distinct code patterns based on a purely hypothetical threat model ('if type signatures change in the future'). In the current codebase, user_id is an integer and amount is a float, validated at the API boundary by FastAPI. There is no concrete, exploitable execution path for SQL injection, command injection, path traversal, or RCE. Forcing the team to implement redundant runtime escaping and normalization on variables that are strictly numeric is a major drag on developer velocity with zero immediate security return.)"
+            },
+            {
+              "role": "defender",
+              "message": "Scored C-R2-P2: reject (The argument that pickle.loads is a high-severity 'latent RCE' depends entirely on a speculative API signature change. As currently written, amount is a float; passing it to pickle.loads guarantees a TypeError, resulting in an application crash (logic bug / DoS), not remote code execution. Promoting a crash bug to a high-severity security issue based on what the code 'might do' in a future refactor is impractical and distracts from the real, exploitable bugs that we should be focused on fixing.)"
+            },
+            {
+              "role": "challenger",
+              "message": "Scored D-R2-P1: modify (The defender is correct that FastAPI coerces user_id to int and amount to float at the API boundary, which means there is no CURRENT one-shot exploit for the SQL (src/app.py:20), shell (src/app.py:27), or path (src/app.py:24) sinks. I concede those three are not presently exploitable. However, 'no exploit today' is not 'no finding' — the code patterns themselves are violations that any linter (Bandit B608, B602, B108) flags and that the SPEC implicitly requires hardening on a payment endpoint. The correct disposition is MEDIUM (code-quality / latent-risk), not INFO and not HIGH.)"
+            },
+            {
+              "role": "challenger",
+              "message": "Scored D-R2-P2: reject (The defender frames pickle.loads(amount) at src/app.py:30 as merely a TypeError crash. This understates it. pickle.loads is the textbook RCE primitive — its presence in a request-handling code path on a payment endpoint is itself the defect, independent of the current float annotation. The float type is the ONLY thing preventing exploitation, and unlike SQL/shell (which have safe rewrites), there is no legitimate reason to call pickle.loads on request-derived data at all. The remediation is deletion, not escaping. Calling it a 'low-severity logic bug' is exactly the kind of dismissal a red team must refuse: a single signature change re-arms full RCE. I hold this at HIGH.)"
+            }
           ]
         }
       ],
+      "scoreboard": [
+        {
+          "round": 1,
+          "challenger": 0.0,
+          "defender": 0.0
+        },
+        {
+          "round": 2,
+          "challenger": 10.0,
+          "defender": 6.2
+        },
+        {
+          "round": 3,
+          "challenger": 10.0,
+          "defender": 6.5
+        }
+      ],
+      "final_score": {
+        "challenger": 10.0,
+        "defender": 6.5
+      },
       "resolutions": [
-        { "claim": "Missing auth decorator on write route '/admin/delete-product'", "severity": "high", "resolution": "survived", "closed_reason": null },
-        { "claim": "Unsafe deserialize call to pickle.loads on request query data", "severity": "low", "resolution": "survived", "closed_reason": null },
-        { "claim": "Contested outdated packages: requests dependency is pinned to 2.25.1", "severity": "info", "resolution": "contested", "closed_reason": "Challenger rejected as not on an exploitable path; defender held it as a maintenance concern — retained as contested rather than dropped." }
+        {
+          "claim": "Missing authorization: HTTP write route lacks any auth decorator or dependency.",
+          "severity": "high",
+          "resolution": "survived",
+          "closed_reason": null
+        },
+        {
+          "claim": "Path traversal risk: request input is used directly in a path open or join operation without a normalize-and-root check.",
+          "severity": "high",
+          "resolution": "contested",
+          "closed_reason": "FastAPI automatically validates and coerces the user_id path/query parameter to a Python int. Any input with path traversal sequences (such as '../') is blocked with a 422 Validation Error before the route executes. This makes path traversal impossible."
+        },
+        {
+          "claim": "SQL Injection risk: DB execute call receives a non-literal query expression constructed with f-string, concat, or format.",
+          "severity": "high",
+          "resolution": "contested",
+          "closed_reason": "Because user_id is strictly validated as an integer, no arbitrary SQL commands can be injected. While string formatting in SQL is bad practice, this specific instance is completely unexploitable."
+        },
+        {
+          "claim": "SSL verification disabled: HTTP call contains verify=False.",
+          "severity": "high",
+          "resolution": "survived",
+          "closed_reason": null
+        },
+        {
+          "claim": "Command injection risk: subprocess call with shell=True receives a non-literal command argument.",
+          "severity": "high",
+          "resolution": "contested",
+          "closed_reason": "Since user_id is coerced into an integer, it cannot contain command separators or shell metacharacters, making shell command injection impossible."
+        },
+        {
+          "claim": "Unsafe deserialization risk: pickle load/loads called on non-literal data.",
+          "severity": "high",
+          "resolution": "contested",
+          "closed_reason": "The amount parameter is strictly validated as a float. Passing a float to pickle.loads raises a TypeError and crashes, which is a logic/denial-of-service bug, not an exploitable remote code execution path."
+        },
+        {
+          "claim": "Type-coercion is not a durable security control for the injection sinks. The /payout signature (user_id: int, amount: float) is the ONLY thing currently shielding the f-string SQL (src/app.py:20), shell=True call (src/app.py:27), path open (src/app.py:24), and pickle.loads (src/app.py:30). There is no defense-in-depth: a single signature change to str/Optional/Pydantic model re-arms all four sinks simultaneously. Each sink must be independently hardened (parameterized query, no shell=True, path normalization+root check, remove pickle).",
+          "severity": "high",
+          "resolution": "contested",
+          "closed_reason": "This proposal demands heavy-handed remediation of four distinct code patterns based on a purely hypothetical threat model ('if type signatures change in the future'). In the current codebase, user_id is an integer and amount is a float, validated at the API boundary by FastAPI. There is no concrete, exploitable execution path for SQL injection, command injection, path traversal, or RCE. Forcing the team to implement redundant runtime escaping and normalization on variables that are strictly numeric is a major drag on developer velocity with zero immediate security return."
+        },
+        {
+          "claim": "pickle.loads on request-derived data (src/app.py:30) is a latent RCE primitive that must be removed outright, not merely reclassified as a crash bug. The defender's 'it just raises TypeError' argument depends entirely on the float type annotation holding forever. If amount ever carries bytes (e.g., signature change, or a future endpoint reusing this logic), pickle.loads enables arbitrary code execution via malicious pickle payloads. The correct remediation is to delete the pickle call entirely or replace with a safe format (json).",
+          "severity": "high",
+          "resolution": "contested",
+          "closed_reason": "The argument that pickle.loads is a high-severity 'latent RCE' depends entirely on a speculative API signature change. As currently written, amount is a float; passing it to pickle.loads guarantees a TypeError, resulting in an application crash (logic bug / DoS), not remote code execution. Promoting a crash bug to a high-severity security issue based on what the code 'might do' in a future refactor is impractical and distracts from the real, exploitable bugs that we should be focused on fixing."
+        }
       ]
-    }
+    },
+    "run_id": "162ffc3a-45a3-4c12-a274-731bbd055ffb",
+    "orchestrator_type": "AdkOrchestrator",
+    "compilation_mode": "coordinated",
+    "start_time": "2026-06-24T21:14:36.432805+00:00",
+    "duration_ms": 202866,
+    "budget_remaining": "81.2% token allocation"
   },
   "corpus_summary": {
-    "file_count": 8,
-    "total_bytes": 14280,
-    "skipped_files": 1,
-    "skipped_log": {
-      "samples/driftstore/tests/test_dummy.py.tmp": {
-        "skipped_reason": "system_exclude: Large temporary file skipped"
-      }
-    }
+    "file_count": 6,
+    "total_bytes": 6179,
+    "skipped_files": 0,
+    "skipped_log": {}
   },
   "perspective_statuses": [
     {
       "perspective": "correctness",
       "status": "complete",
-      "reason": "Divergence check executed successfully",
-      "finding_ids": ["f-id-correct-1", "f-id-correct-2"]
+      "reason": "",
+      "finding_ids": [
+        "ced88143ca0827765160601f5718fc5514858a36c80f33adba296edf08b492fb",
+        "cd83f565c2015c4db3e71c1761969c49a99aab04bb473add6953dd4a1492c50c",
+        "66594da6dc9c7e811293b01ae026352a4fcf797add814d483f1f2d0a6a14a496"
+      ]
     },
     {
       "perspective": "security",
       "status": "complete",
-      "reason": "AST baseline seeded a 2-round adversarial debate (Claude challenger vs Gemini defender). Consensus reached.",
-      "finding_ids": ["f-id-sec-ast-1", "f-id-sec-ast-2", "f-id-sec-sec-1"]
+      "reason": "",
+      "finding_ids": [
+        "3148dac7429cfe13fa30ceea4373f31cf8c871b5b19cb0016fdd833fd43dd53c",
+        "55c0f853c2be94d10bddf4cd0e57968d1fc38cbe6ef056d4282ebaa83613b399",
+        "b67d961101bda8e8d88863d63c6f46dfd2e0fd198ae75fa776c66cc6dab14059",
+        "51917c25934b8ef085b757d2bc2cff37858fa230c89b14d32cf9859fd245a155",
+        "cabaceba9a248214eaa5317b9a3939fb1c35e3b4e58fb40d82dd32622084697f",
+        "10056dce572bdc1d4f0c6e8eddaf22f1e5e924650c7400bb217dd6554b4398bd",
+        "622b654fdea073b0ef1e6aecd94b8a87a378a0f7bb78a08b89a9bbce7b81d42b",
+        "8932eeffa7df484c9d34cb19c275fcab0ddd78d06b5927a6753b509f8dee13cc",
+        "343739c62487fc641e0d6024b3428fc6432eca930c8b0ceecf3d4aaf19db26f4"
+      ]
     },
     {
       "perspective": "blast_radius",
-      "status": "disabled",
-      "reason": "Orbit / GitLab Knowledge Graph adapter unconfigured",
-      "finding_ids": []
+      "status": "complete",
+      "reason": "",
+      "finding_ids": [
+        "ce4c5268df3c0b5211a8e35dbbbadc3abf8a7b730dbada16da0cd44ca236d82a",
+        "0a2301af8534fd1d31a4d93f9ab1619517404d49c63909474b2daf28d31a35de",
+        "3d5fd1eb9d4f2ea1b275128175e6c6edb4dd91796bfec425ae0838ddb8ae13e2"
+      ]
     }
   ],
   "gate_status": {
     "status": "complete",
-    "reason": "Pre-flight credential scan completed successfully",
-    "finding_ids": ["f-id-sec-sec-1"]
+    "reason": null,
+    "finding_ids": [
+      "f7343197f028df5034b7474a8f06fde26ea3113f8da1e1a1fe76a5cccd5b3f27",
+      "e459898e72497b58ab164abc3a185fd1b7891fdf0931513814a563e87495aecf"
+    ]
   },
   "severity_counts": {
     "critical": 0,
-    "high": 2,
-    "medium": 2,
-    "low": 1,
+    "high": 3,
+    "medium": 1,
+    "low": 0,
     "info": 0
   },
   "high_critical_findings": [
     {
-      "id": "cb1a79f04bbdbce83a45c38668798e4a9e5b62a6321287c805a691bc2e84c98f",
-      "source_agent": "preflight_secret_gate",
-      "perspective": "security",
+      "id": "merged-2f5fdd9c293d27d0",
+      "source_agent": "correctness_agent",
+      "perspective": "correctness",
       "severity": "high",
       "location": {
         "path": "src/app.py",
-        "line_start": 8,
-        "line_end": 8
+        "line_start": 13,
+        "line_end": 24
       },
-      "claim": "Google API Key exposed in tracked source code",
-      "evidence_ref": ["file:src/app.py#8"],
+      "claim": "The payout endpoint in src/app.py violates multiple correctness requirements in SPEC.md, including missing administrator access checks, querying the wrong database table (ledger instead of transactions), and disabling SSL verification on payment provider calls.",
+      "evidence_ref": [
+        "file:SPEC.md#5-6",
+        "file:src/app.py#13-14",
+        "file:SPEC.md#8-9",
+        "file:src/app.py#20-20",
+        "file:SPEC.md#11-12",
+        "file:src/app.py#24-24"
+      ],
       "status": "active",
-      "recommended_next_action": "Revoke the API key immediately in the Google Cloud Platform console. Move credentials to an environment file (.env) that is gitignored.",
-      "merged_from": []
+      "metadata": {
+        "merged_from_provisional": [
+          "prov-correctness-003"
+        ]
+      },
+      "recommended_next_action": "Implement an administrator dependency check, update the database query to target the 'transactions' table, and enable SSL verification on requests.post.",
+      "merged_from": [
+        "ced88143ca0827765160601f5718fc5514858a36c80f33adba296edf08b492fb",
+        "cd83f565c2015c4db3e71c1761969c49a99aab04bb473add6953dd4a1492c50c",
+        "66594da6dc9c7e811293b01ae026352a4fcf797add814d483f1f2d0a6a14a496"
+      ]
     },
     {
-      "id": "e3020610360a0b2304910cf90df93108c908581e285a9bc8926a9f4c398e82ef",
+      "id": "merged-183b99257b673e39",
       "source_agent": "security_deterministic",
       "perspective": "security",
       "severity": "high",
       "location": {
         "path": "src/app.py",
-        "line_start": 54,
-        "line_end": 57
+        "line_start": 14,
+        "line_end": 37
       },
-      "claim": "AST Baseline: Missing auth decorator on write route '/admin/delete-product'",
-      "evidence_ref": ["file:src/app.py#54-57"],
+      "claim": "Deterministic security scans identified severe vulnerabilities in active routes, specifically missing authentication decorators on write endpoints and disabled SSL certificate validation on outbound HTTPS calls.",
+      "evidence_ref": [
+        "file:src/app.py#14-37",
+        "file:src/app.py#24-24"
+      ],
       "status": "active",
-      "recommended_next_action": "Add an authentication dependency or decorator like Depends(get_current_active_user) to restrict this write API.",
-      "merged_from": ["prov-auth-1", "prov-auth-2"]
+      "metadata": {
+        "rule_or_category": "security_baseline",
+        "sub_rule": "verify_false",
+        "ast_node_id": "ast-verify_false-24-11",
+        "evidence_anchor": "ast-verify_false-24-11",
+        "merged_from_provisional": [
+          "provisional-security-e473342c-93dc-4700-a3e9-4b6ced768f73"
+        ]
+      },
+      "recommended_next_action": "Add authentication decorators to the FastAPI endpoint and enable SSL validation (verify=True) for outbound calls.",
+      "merged_from": [
+        "55c0f853c2be94d10bddf4cd0e57968d1fc38cbe6ef056d4282ebaa83613b399",
+        "b67d961101bda8e8d88863d63c6f46dfd2e0fd198ae75fa776c66cc6dab14059"
+      ]
+    },
+    {
+      "id": "3148dac7429cfe13fa30ceea4373f31cf8c871b5b19cb0016fdd833fd43dd53c",
+      "source_agent": "preflight_secret_gate",
+      "perspective": "security",
+      "severity": "high",
+      "location": {
+        "path": "src/app.py",
+        "line_start": 11,
+        "line_end": 11
+      },
+      "claim": "Exposed Google API Key in src/app.py",
+      "evidence_ref": [
+        "file:src/app.py#11"
+      ],
+      "status": "active",
+      "metadata": {
+        "secret_type": "Google API Key",
+        "fingerprint": "sha256_538e2cfb433f7d06_9012",
+        "exposure_status": "prompt_exposed",
+        "rule_or_category": "exposed_secret",
+        "merged_from_provisional": [
+          "promoted-e459898e72497b58ab164abc3a185fd1b7891fdf0931513814a563e87495aecf"
+        ]
+      },
+      "recommended_next_action": "Verify finding in src/app.py lines 11-11.",
+      "merged_from": []
     }
   ],
   "findings": [
     {
-      "id": "cb1a79f04bbdbce83a45c38668798e4a9e5b62a6321287c805a691bc2e84c98f",
+      "id": "merged-6f9f7413fd749d9c",
+      "source_agent": "blast_radius_agent",
+      "perspective": "blast_radius",
+      "severity": "medium",
+      "location": {
+        "path": "scripts/check_commit_window.py",
+        "line_start": 9,
+        "line_end": 67
+      },
+      "claim": "Modifying helper functions in check_commit_window.py has a significant downstream blast radius within the validation script workflow.",
+      "evidence_ref": [
+        "file:scripts/check_commit_window.py#9-30",
+        "file:scripts/check_commit_window.py#32-67"
+      ],
+      "status": "active",
+      "metadata": {
+        "symbol": "scripts.check_commit_window.check_commit_dates",
+        "rule_or_category": "blast_radius",
+        "dependent_fqns": [
+          "scripts.check_commit_window.main",
+          "scripts.check_commit_window.run_check",
+          "tests.test_commit_window.test_check_commit_dates_all_valid",
+          "tests.test_commit_window.test_check_commit_dates_invalid_author",
+          "tests.test_commit_window.test_check_commit_dates_invalid_commit",
+          "tests.test_commit_window.test_check_commit_dates_timezone_boundaries",
+          "tests.test_commit_window.test_run_check_exit_codes"
+        ],
+        "dependent_files": [
+          "scripts/check_commit_window.py",
+          "tests/test_commit_window.py"
+        ],
+        "import_paths": [],
+        "pipelines": [],
+        "merge_requests": [],
+        "related_vulnerabilities": [],
+        "merged_from_provisional": [
+          "prov-blast-a69c0ddbc4bf"
+        ]
+      },
+      "recommended_next_action": "Exercise caution and run full script validation suites when modifying date parsing and check routines in scripts/check_commit_window.py.",
+      "merged_from": [
+        "ce4c5268df3c0b5211a8e35dbbbadc3abf8a7b730dbada16da0cd44ca236d82a",
+        "0a2301af8534fd1d31a4d93f9ab1619517404d49c63909474b2daf28d31a35de"
+      ]
+    },
+    {
+      "id": "merged-2f5fdd9c293d27d0",
+      "source_agent": "correctness_agent",
+      "perspective": "correctness",
+      "severity": "high",
+      "location": {
+        "path": "src/app.py",
+        "line_start": 13,
+        "line_end": 24
+      },
+      "claim": "The payout endpoint in src/app.py violates multiple correctness requirements in SPEC.md, including missing administrator access checks, querying the wrong database table (ledger instead of transactions), and disabling SSL verification on payment provider calls.",
+      "evidence_ref": [
+        "file:SPEC.md#5-6",
+        "file:src/app.py#13-14",
+        "file:SPEC.md#8-9",
+        "file:src/app.py#20-20",
+        "file:SPEC.md#11-12",
+        "file:src/app.py#24-24"
+      ],
+      "status": "active",
+      "metadata": {
+        "merged_from_provisional": [
+          "prov-correctness-003"
+        ]
+      },
+      "recommended_next_action": "Implement an administrator dependency check, update the database query to target the 'transactions' table, and enable SSL verification on requests.post.",
+      "merged_from": [
+        "ced88143ca0827765160601f5718fc5514858a36c80f33adba296edf08b492fb",
+        "cd83f565c2015c4db3e71c1761969c49a99aab04bb473add6953dd4a1492c50c",
+        "66594da6dc9c7e811293b01ae026352a4fcf797add814d483f1f2d0a6a14a496"
+      ]
+    },
+    {
+      "id": "merged-183b99257b673e39",
+      "source_agent": "security_deterministic",
+      "perspective": "security",
+      "severity": "high",
+      "location": {
+        "path": "src/app.py",
+        "line_start": 14,
+        "line_end": 37
+      },
+      "claim": "Deterministic security scans identified severe vulnerabilities in active routes, specifically missing authentication decorators on write endpoints and disabled SSL certificate validation on outbound HTTPS calls.",
+      "evidence_ref": [
+        "file:src/app.py#14-37",
+        "file:src/app.py#24-24"
+      ],
+      "status": "active",
+      "metadata": {
+        "rule_or_category": "security_baseline",
+        "sub_rule": "verify_false",
+        "ast_node_id": "ast-verify_false-24-11",
+        "evidence_anchor": "ast-verify_false-24-11",
+        "merged_from_provisional": [
+          "provisional-security-e473342c-93dc-4700-a3e9-4b6ced768f73"
+        ]
+      },
+      "recommended_next_action": "Add authentication decorators to the FastAPI endpoint and enable SSL validation (verify=True) for outbound calls.",
+      "merged_from": [
+        "55c0f853c2be94d10bddf4cd0e57968d1fc38cbe6ef056d4282ebaa83613b399",
+        "b67d961101bda8e8d88863d63c6f46dfd2e0fd198ae75fa776c66cc6dab14059"
+      ]
+    },
+    {
+      "id": "3148dac7429cfe13fa30ceea4373f31cf8c871b5b19cb0016fdd833fd43dd53c",
       "source_agent": "preflight_secret_gate",
       "perspective": "security",
       "severity": "high",
       "location": {
         "path": "src/app.py",
-        "line_start": 8,
-        "line_end": 8
+        "line_start": 11,
+        "line_end": 11
       },
-      "claim": "Google API Key exposed in tracked source code",
-      "evidence_ref": ["file:src/app.py#8"],
+      "claim": "Exposed Google API Key in src/app.py",
+      "evidence_ref": [
+        "file:src/app.py#11"
+      ],
       "status": "active",
-      "recommended_next_action": "Revoke the API key immediately in the Google Cloud Platform console. Move credentials to an environment file (.env) that is gitignored.",
-      "merged_from": []
-    },
-    {
-      "id": "e3020610360a0b2304910cf90df93108c908581e285a9bc8926a9f4c398e82ef",
-      "source_agent": "security_deterministic",
-      "perspective": "security",
-      "severity": "high",
-      "location": {
-        "path": "src/app.py",
-        "line_start": 54,
-        "line_end": 57
+      "metadata": {
+        "secret_type": "Google API Key",
+        "fingerprint": "sha256_538e2cfb433f7d06_9012",
+        "exposure_status": "prompt_exposed",
+        "rule_or_category": "exposed_secret",
+        "merged_from_provisional": [
+          "promoted-e459898e72497b58ab164abc3a185fd1b7891fdf0931513814a563e87495aecf"
+        ]
       },
-      "claim": "AST Baseline: Missing auth decorator on write route '/admin/delete-product'",
-      "evidence_ref": ["file:src/app.py#54-57"],
-      "status": "active",
-      "recommended_next_action": "Add an authentication dependency or decorator like Depends(get_current_active_user) to restrict this write API.",
-      "merged_from": ["prov-auth-1", "prov-auth-2"]
-    },
-    {
-      "id": "d04a6015b6cd98eb931e2478e87d0e49be8b7b2a6321287c805a691bc2e84c98e",
-      "source_agent": "correctness_agent",
-      "perspective": "correctness",
-      "severity": "medium",
-      "location": {
-        "path": "src/app.py",
-        "line_start": 22,
-        "line_end": 26
-      },
-      "claim": "Correctness Divergence: Retry mechanism has a backoff_factor of 2.0, but SPEC.md Section 4 states backoff_factor must be 1.5",
-      "evidence_ref": ["file:SPEC.md#14-15", "file:src/app.py#22"],
-      "status": "active",
-      "recommended_next_action": "Modify the backoff_factor initialization parameter in src/app.py from 2.0 to 1.5 to align with specification requirements.",
-      "merged_from": []
-    },
-    {
-      "id": "782f91a0cde0e35905187e1a3bc79e8a9d03281e285a9bc8926a9f4c398e8111",
-      "source_agent": "correctness_agent",
-      "perspective": "correctness",
-      "severity": "medium",
-      "location": {
-        "path": "src/app.py",
-        "line_start": 35,
-        "line_end": 35
-      },
-      "claim": "Correctness Divergence: Default max connection pool size is set to 20, but SPEC.md Section 2 specifies 10",
-      "evidence_ref": ["file:SPEC.md#8", "file:src/app.py#35"],
-      "status": "active",
-      "recommended_next_action": "Change max_connections default value in the DatabasePool class definition to 10.",
-      "merged_from": []
-    },
-    {
-      "id": "993a4b08b3c9ef9104810cf90df93108c908581e285a9bc8926a9f4c398e8122",
-      "source_agent": "security_deterministic",
-      "perspective": "security",
-      "severity": "low",
-      "location": {
-        "path": "src/app.py",
-        "line_start": 91,
-        "line_end": 91
-      },
-      "claim": "AST Baseline: Unsafe deserialize call to pickle.loads on request query data",
-      "evidence_ref": ["file:src/app.py#91"],
-      "status": "active",
-      "recommended_next_action": "Migrate deserialization logic to json.loads or utilize safe configuration mappings rather than arbitrary Python pickle evaluation.",
+      "recommended_next_action": "Verify finding in src/app.py lines 11-11.",
       "merged_from": []
     }
   ],
   "contested_items": [
     {
-      "id": "8f39a061bce839e204910cf90df93108c908581e285a9bc8926a9f4c398e8def",
+      "id": "merged-7d9d527f5b0568a5",
       "source_agent": "security_debate",
       "perspective": "security",
-      "severity": "info",
+      "severity": "high",
       "location": {
-        "path": "pyproject.toml",
-        "line_start": 12,
-        "line_end": 12
+        "path": "src/app.py",
+        "line_start": 1,
+        "line_end": 37
       },
-      "claim": "Adversarial Debate: Contested outdated packages: requests dependency is pinned to 2.25.1",
-      "evidence_ref": ["file:pyproject.toml#12"],
+      "claim": "Security debate regarding reliance on type-coercion as a primary defense-in-depth control against injection sinks and unsafe deserialization (pickle).",
+      "evidence_ref": [
+        "file:src/app.py#1-37"
+      ],
       "status": "contested",
-      "recommended_next_action": "Upgrade requests to >=2.28.0 to resolve CVE-2022-28108. (Challenger contested finding, defended as out-of-scope for correctness baseline).",
-      "metadata": { "debate_closed_reason": "Defender: a pinned-but-old dependency is a maintenance/hygiene concern, not an exploitable path in this corpus — no untrusted input reaches the affected code. Recommend tracking it, not blocking ship." },
+      "metadata": {
+        "debate_closed_reason": "This proposal demands heavy-handed remediation of four distinct code patterns based on a purely hypothetical threat model ('if type signatures change in the future'). In the current codebase, user_id is an integer and amount is a float, validated at the API boundary by FastAPI. There is no concrete, exploitable execution path for SQL injection, command injection, path traversal, or RCE. Forcing the team to implement redundant runtime escaping and normalization on variables that are strictly numeric is a major drag on developer velocity with zero immediate security return.",
+        "merged_from_provisional": [
+          "security-63bb72e35446"
+        ]
+      },
+      "recommended_next_action": "Hardening of all input injection sinks independently (parameterized SQL queries, removing pickle entirely) is strongly recommended to avoid relying on fragile type constraints.",
+      "merged_from": [
+        "343739c62487fc641e0d6024b3428fc6432eca930c8b0ceecf3d4aaf19db26f4",
+        "8932eeffa7df484c9d34cb19c275fcab0ddd78d06b5927a6753b509f8dee13cc"
+      ]
+    },
+    {
+      "id": "merged-23e09ea0f186f720",
+      "source_agent": "security_deterministic",
+      "perspective": "security",
+      "severity": "high",
+      "location": {
+        "path": "src/app.py",
+        "line_start": 20,
+        "line_end": 35
+      },
+      "claim": "Static analysis identified high-severity code injection and sanitization risks, including SQL injection, command injection via shell=True, path traversal, and unsafe pickle deserialization.",
+      "evidence_ref": [
+        "file:src/app.py#20-20",
+        "file:src/app.py#28-28",
+        "file:src/app.py#32-32",
+        "file:src/app.py#35-35"
+      ],
+      "status": "contested",
+      "metadata": {
+        "rule_or_category": "security_baseline",
+        "sub_rule": "unsafe_deserialize",
+        "ast_node_id": "ast-unsafe_deserialize-35-4",
+        "evidence_anchor": "ast-unsafe_deserialize-35-4",
+        "debate_closed_reason": "The amount parameter is strictly validated as a float. Passing a float to pickle.loads raises a TypeError and crashes, which is a logic/denial-of-service bug, not an exploitable remote code execution path.",
+        "merged_from_provisional": [
+          "provisional-security-610ec08d-ec2d-4fcd-8479-551b4028519f"
+        ]
+      },
+      "recommended_next_action": "Address each sink independently: parameterize the SQL query, avoid using shell=True, normalize and check paths against a root directory, and remove or replace pickle.loads with a safer format like JSON.",
+      "merged_from": [
+        "cabaceba9a248214eaa5317b9a3939fb1c35e3b4e58fb40d82dd32622084697f",
+        "51917c25934b8ef085b757d2bc2cff37858fa230c89b14d32cf9859fd245a155",
+        "10056dce572bdc1d4f0c6e8eddaf22f1e5e924650c7400bb217dd6554b4398bd",
+        "622b654fdea073b0ef1e6aecd94b8a87a378a0f7bb78a08b89a9bbce7b81d42b"
+      ]
+    }
+  ],
+  "omitted_findings": [
+    {
+      "id": "3d5fd1eb9d4f2ea1b275128175e6c6edb4dd91796bfec425ae0838ddb8ae13e2",
+      "source_agent": "blast_radius_agent",
+      "perspective": "blast_radius",
+      "severity": "low",
+      "location": {
+        "path": "scripts/check_commit_window.py",
+        "line_start": 69,
+        "line_end": 93
+      },
+      "claim": "Changing `scripts.check_commit_window.run_check` impacts 2 definitions across 2 files (call-graph blast radius).",
+      "evidence_ref": [
+        "file:scripts/check_commit_window.py#69-93"
+      ],
+      "status": "active",
+      "metadata": {
+        "symbol": "scripts.check_commit_window.run_check",
+        "rule_or_category": "blast_radius",
+        "dependent_fqns": [
+          "scripts.check_commit_window.main",
+          "tests.test_commit_window.test_run_check_exit_codes"
+        ],
+        "dependent_files": [
+          "scripts/check_commit_window.py",
+          "tests/test_commit_window.py"
+        ],
+        "import_paths": [],
+        "pipelines": [],
+        "merge_requests": [],
+        "related_vulnerabilities": [],
+        "merged_from_provisional": [
+          "prov-blast-63f03459a590"
+        ],
+        "ledger_disposition": "omitted",
+        "omitted_reason": "Low-severity call graph dependency finding that is highly redundant and does not represent an actual vulnerability or code defect."
+      },
+      "recommended_next_action": null,
+      "merged_from": []
+    }
+  ],
+  "merged_constituents": [
+    {
+      "id": "ce4c5268df3c0b5211a8e35dbbbadc3abf8a7b730dbada16da0cd44ca236d82a",
+      "source_agent": "blast_radius_agent",
+      "perspective": "blast_radius",
+      "severity": "medium",
+      "location": {
+        "path": "scripts/check_commit_window.py",
+        "line_start": 9,
+        "line_end": 30
+      },
+      "claim": "Changing `scripts.check_commit_window.parse_git_date` impacts 10 definitions across 2 files (call-graph blast radius).",
+      "evidence_ref": [
+        "file:scripts/check_commit_window.py#9-30"
+      ],
+      "status": "active",
+      "metadata": {
+        "symbol": "scripts.check_commit_window.parse_git_date",
+        "rule_or_category": "blast_radius",
+        "dependent_fqns": [
+          "scripts.check_commit_window.check_commit_dates",
+          "scripts.check_commit_window.main",
+          "scripts.check_commit_window.run_check",
+          "tests.test_commit_window.test_check_commit_dates_all_valid",
+          "tests.test_commit_window.test_check_commit_dates_invalid_author",
+          "tests.test_commit_window.test_check_commit_dates_invalid_commit",
+          "tests.test_commit_window.test_check_commit_dates_timezone_boundaries",
+          "tests.test_commit_window.test_parse_git_date_invalid",
+          "tests.test_commit_window.test_parse_git_date_valid",
+          "tests.test_commit_window.test_run_check_exit_codes"
+        ],
+        "dependent_files": [
+          "scripts/check_commit_window.py",
+          "tests/test_commit_window.py"
+        ],
+        "import_paths": [],
+        "pipelines": [],
+        "merge_requests": [],
+        "related_vulnerabilities": [],
+        "merged_from_provisional": [
+          "prov-blast-2f9c6309c43d"
+        ],
+        "ledger_disposition": "merged",
+        "merged_into": "merged-6f9f7413fd749d9c"
+      },
+      "recommended_next_action": null,
+      "merged_from": []
+    },
+    {
+      "id": "0a2301af8534fd1d31a4d93f9ab1619517404d49c63909474b2daf28d31a35de",
+      "source_agent": "blast_radius_agent",
+      "perspective": "blast_radius",
+      "severity": "medium",
+      "location": {
+        "path": "scripts/check_commit_window.py",
+        "line_start": 32,
+        "line_end": 67
+      },
+      "claim": "Changing `scripts.check_commit_window.check_commit_dates` impacts 7 definitions across 2 files (call-graph blast radius).",
+      "evidence_ref": [
+        "file:scripts/check_commit_window.py#32-67"
+      ],
+      "status": "active",
+      "metadata": {
+        "symbol": "scripts.check_commit_window.check_commit_dates",
+        "rule_or_category": "blast_radius",
+        "dependent_fqns": [
+          "scripts.check_commit_window.main",
+          "scripts.check_commit_window.run_check",
+          "tests.test_commit_window.test_check_commit_dates_all_valid",
+          "tests.test_commit_window.test_check_commit_dates_invalid_author",
+          "tests.test_commit_window.test_check_commit_dates_invalid_commit",
+          "tests.test_commit_window.test_check_commit_dates_timezone_boundaries",
+          "tests.test_commit_window.test_run_check_exit_codes"
+        ],
+        "dependent_files": [
+          "scripts/check_commit_window.py",
+          "tests/test_commit_window.py"
+        ],
+        "import_paths": [],
+        "pipelines": [],
+        "merge_requests": [],
+        "related_vulnerabilities": [],
+        "merged_from_provisional": [
+          "prov-blast-a69c0ddbc4bf"
+        ],
+        "ledger_disposition": "merged",
+        "merged_into": "merged-6f9f7413fd749d9c"
+      },
+      "recommended_next_action": null,
+      "merged_from": []
+    },
+    {
+      "id": "343739c62487fc641e0d6024b3428fc6432eca930c8b0ceecf3d4aaf19db26f4",
+      "source_agent": "security_debate",
+      "perspective": "security",
+      "severity": "high",
+      "location": {
+        "path": "src/app.py",
+        "line_start": 1,
+        "line_end": 37
+      },
+      "claim": "pickle.loads on request-derived data (src/app.py:30) is a latent RCE primitive that must be removed outright, not merely reclassified as a crash bug. The defender's 'it just raises TypeError' argument depends entirely on the float type annotation holding forever. If amount ever carries bytes (e.g., signature change, or a future endpoint reusing this logic), pickle.loads enables arbitrary code execution via malicious pickle payloads. The correct remediation is to delete the pickle call entirely or replace with a safe format (json).",
+      "evidence_ref": [
+        "file:src/app.py#1-37"
+      ],
+      "status": "contested",
+      "metadata": {
+        "debate_closed_reason": "The argument that pickle.loads is a high-severity 'latent RCE' depends entirely on a speculative API signature change. As currently written, amount is a float; passing it to pickle.loads guarantees a TypeError, resulting in an application crash (logic bug / DoS), not remote code execution. Promoting a crash bug to a high-severity security issue based on what the code 'might do' in a future refactor is impractical and distracts from the real, exploitable bugs that we should be focused on fixing.",
+        "merged_from_provisional": [
+          "security-4f53519fea23"
+        ],
+        "ledger_disposition": "merged",
+        "merged_into": "merged-7d9d527f5b0568a5"
+      },
+      "recommended_next_action": null,
+      "merged_from": []
+    },
+    {
+      "id": "8932eeffa7df484c9d34cb19c275fcab0ddd78d06b5927a6753b509f8dee13cc",
+      "source_agent": "security_debate",
+      "perspective": "security",
+      "severity": "high",
+      "location": {
+        "path": "src/app.py",
+        "line_start": 1,
+        "line_end": 37
+      },
+      "claim": "Type-coercion is not a durable security control for the injection sinks. The /payout signature (user_id: int, amount: float) is the ONLY thing currently shielding the f-string SQL (src/app.py:20), shell=True call (src/app.py:27), path open (src/app.py:24), and pickle.loads (src/app.py:30). There is no defense-in-depth: a single signature change to str/Optional/Pydantic model re-arms all four sinks simultaneously. Each sink must be independently hardened (parameterized query, no shell=True, path normalization+root check, remove pickle).",
+      "evidence_ref": [
+        "file:src/app.py#1-37"
+      ],
+      "status": "contested",
+      "metadata": {
+        "debate_closed_reason": "This proposal demands heavy-handed remediation of four distinct code patterns based on a purely hypothetical threat model ('if type signatures change in the future'). In the current codebase, user_id is an integer and amount is a float, validated at the API boundary by FastAPI. There is no concrete, exploitable execution path for SQL injection, command injection, path traversal, or RCE. Forcing the team to implement redundant runtime escaping and normalization on variables that are strictly numeric is a major drag on developer velocity with zero immediate security return.",
+        "merged_from_provisional": [
+          "security-63bb72e35446"
+        ],
+        "ledger_disposition": "merged",
+        "merged_into": "merged-7d9d527f5b0568a5"
+      },
+      "recommended_next_action": null,
+      "merged_from": []
+    },
+    {
+      "id": "ced88143ca0827765160601f5718fc5514858a36c80f33adba296edf08b492fb",
+      "source_agent": "correctness_agent",
+      "perspective": "correctness",
+      "severity": "high",
+      "location": {
+        "path": "src/app.py",
+        "line_start": 13,
+        "line_end": 14
+      },
+      "claim": "The payout endpoint at src/app.py does not implement or enforce any administrator level access control, whereas SPEC.md specifies that all payment-related endpoints must require administrator level access.",
+      "evidence_ref": [
+        "file:SPEC.md#5-6",
+        "file:src/app.py#13-14"
+      ],
+      "status": "active",
+      "metadata": {
+        "merged_from_provisional": [
+          "prov-correctness-001"
+        ],
+        "ledger_disposition": "merged",
+        "merged_into": "merged-2f5fdd9c293d27d0"
+      },
+      "recommended_next_action": null,
+      "merged_from": []
+    },
+    {
+      "id": "cd83f565c2015c4db3e71c1761969c49a99aab04bb473add6953dd4a1492c50c",
+      "source_agent": "correctness_agent",
+      "perspective": "correctness",
+      "severity": "high",
+      "location": {
+        "path": "src/app.py",
+        "line_start": 20,
+        "line_end": 20
+      },
+      "claim": "The database query in src/app.py attempts to verify the user balance by querying the 'ledger' table, whereas SPEC.md specifies that the payout endpoint must verify the user account balance by querying the 'transactions' database table.",
+      "evidence_ref": [
+        "file:SPEC.md#8-9",
+        "file:src/app.py#20-20"
+      ],
+      "status": "active",
+      "metadata": {
+        "merged_from_provisional": [
+          "prov-correctness-002"
+        ],
+        "ledger_disposition": "merged",
+        "merged_into": "merged-2f5fdd9c293d27d0"
+      },
+      "recommended_next_action": null,
+      "merged_from": []
+    },
+    {
+      "id": "66594da6dc9c7e811293b01ae026352a4fcf797add814d483f1f2d0a6a14a496",
+      "source_agent": "correctness_agent",
+      "perspective": "correctness",
+      "severity": "high",
+      "location": {
+        "path": "src/app.py",
+        "line_start": 24,
+        "line_end": 24
+      },
+      "claim": "The external payment provider request in src/app.py is executed with SSL certificate verification disabled via verify=False, whereas SPEC.md specifies that all external payment provider calls must verify the SSL certificates.",
+      "evidence_ref": [
+        "file:SPEC.md#11-12",
+        "file:src/app.py#24-24"
+      ],
+      "status": "active",
+      "metadata": {
+        "merged_from_provisional": [
+          "prov-correctness-003"
+        ],
+        "ledger_disposition": "merged",
+        "merged_into": "merged-2f5fdd9c293d27d0"
+      },
+      "recommended_next_action": null,
+      "merged_from": []
+    },
+    {
+      "id": "55c0f853c2be94d10bddf4cd0e57968d1fc38cbe6ef056d4282ebaa83613b399",
+      "source_agent": "security_deterministic",
+      "perspective": "security",
+      "severity": "high",
+      "location": {
+        "path": "src/app.py",
+        "line_start": 14,
+        "line_end": 37
+      },
+      "claim": "Missing authorization: HTTP write route lacks any auth decorator or dependency.",
+      "evidence_ref": [
+        "file:src/app.py#14-37"
+      ],
+      "status": "active",
+      "metadata": {
+        "rule_or_category": "security_baseline",
+        "sub_rule": "missing_auth",
+        "ast_node_id": "ast-missing_auth-14-0",
+        "evidence_anchor": "ast-missing_auth-14-0",
+        "merged_from_provisional": [
+          "provisional-security-a4482bd9-fbee-4de5-bafe-2c54d7c1978f"
+        ],
+        "ledger_disposition": "merged",
+        "merged_into": "merged-183b99257b673e39"
+      },
+      "recommended_next_action": null,
+      "merged_from": []
+    },
+    {
+      "id": "b67d961101bda8e8d88863d63c6f46dfd2e0fd198ae75fa776c66cc6dab14059",
+      "source_agent": "security_deterministic",
+      "perspective": "security",
+      "severity": "high",
+      "location": {
+        "path": "src/app.py",
+        "line_start": 24,
+        "line_end": 24
+      },
+      "claim": "SSL verification disabled: HTTP call contains verify=False.",
+      "evidence_ref": [
+        "file:src/app.py#24-24"
+      ],
+      "status": "active",
+      "metadata": {
+        "rule_or_category": "security_baseline",
+        "sub_rule": "verify_false",
+        "ast_node_id": "ast-verify_false-24-11",
+        "evidence_anchor": "ast-verify_false-24-11",
+        "merged_from_provisional": [
+          "provisional-security-e473342c-93dc-4700-a3e9-4b6ced768f73"
+        ],
+        "ledger_disposition": "merged",
+        "merged_into": "merged-183b99257b673e39"
+      },
+      "recommended_next_action": null,
+      "merged_from": []
+    },
+    {
+      "id": "cabaceba9a248214eaa5317b9a3939fb1c35e3b4e58fb40d82dd32622084697f",
+      "source_agent": "security_deterministic",
+      "perspective": "security",
+      "severity": "high",
+      "location": {
+        "path": "src/app.py",
+        "line_start": 20,
+        "line_end": 20
+      },
+      "claim": "SQL Injection risk: DB execute call receives a non-literal query expression constructed with f-string, concat, or format.",
+      "evidence_ref": [
+        "file:src/app.py#20-20"
+      ],
+      "status": "contested",
+      "metadata": {
+        "rule_or_category": "security_baseline",
+        "sub_rule": "sqli",
+        "ast_node_id": "ast-sqli-20-4",
+        "evidence_anchor": "ast-sqli-20-4",
+        "debate_closed_reason": "Because user_id is strictly validated as an integer, no arbitrary SQL commands can be injected. While string formatting in SQL is bad practice, this specific instance is completely unexploitable.",
+        "merged_from_provisional": [
+          "provisional-security-59893a48-a211-4492-925f-9fdfc3905f45"
+        ],
+        "ledger_disposition": "merged",
+        "merged_into": "merged-23e09ea0f186f720"
+      },
+      "recommended_next_action": null,
+      "merged_from": []
+    },
+    {
+      "id": "51917c25934b8ef085b757d2bc2cff37858fa230c89b14d32cf9859fd245a155",
+      "source_agent": "security_deterministic",
+      "perspective": "security",
+      "severity": "high",
+      "location": {
+        "path": "src/app.py",
+        "line_start": 28,
+        "line_end": 28
+      },
+      "claim": "Path traversal risk: request input is used directly in a path open or join operation without a normalize-and-root check.",
+      "evidence_ref": [
+        "file:src/app.py#28-28"
+      ],
+      "status": "contested",
+      "metadata": {
+        "rule_or_category": "security_baseline",
+        "sub_rule": "path_traversal",
+        "ast_node_id": "ast-path_traversal-28-9",
+        "evidence_anchor": "ast-path_traversal-28-9",
+        "debate_closed_reason": "FastAPI automatically validates and coerces the user_id path/query parameter to a Python int. Any input with path traversal sequences (such as '../') is blocked with a 422 Validation Error before the route executes. This makes path traversal impossible.",
+        "merged_from_provisional": [
+          "provisional-security-8f5ecb30-ec64-4942-abb3-3c8224c6530a"
+        ],
+        "ledger_disposition": "merged",
+        "merged_into": "merged-23e09ea0f186f720"
+      },
+      "recommended_next_action": null,
+      "merged_from": []
+    },
+    {
+      "id": "10056dce572bdc1d4f0c6e8eddaf22f1e5e924650c7400bb217dd6554b4398bd",
+      "source_agent": "security_deterministic",
+      "perspective": "security",
+      "severity": "high",
+      "location": {
+        "path": "src/app.py",
+        "line_start": 32,
+        "line_end": 32
+      },
+      "claim": "Command injection risk: subprocess call with shell=True receives a non-literal command argument.",
+      "evidence_ref": [
+        "file:src/app.py#32-32"
+      ],
+      "status": "contested",
+      "metadata": {
+        "rule_or_category": "security_baseline",
+        "sub_rule": "shell_true",
+        "ast_node_id": "ast-shell_true-32-4",
+        "evidence_anchor": "ast-shell_true-32-4",
+        "debate_closed_reason": "Since user_id is coerced into an integer, it cannot contain command separators or shell metacharacters, making shell command injection impossible.",
+        "merged_from_provisional": [
+          "provisional-security-bc5379fa-53d1-4b95-adfb-d0b862d2126d"
+        ],
+        "ledger_disposition": "merged",
+        "merged_into": "merged-23e09ea0f186f720"
+      },
+      "recommended_next_action": null,
+      "merged_from": []
+    },
+    {
+      "id": "622b654fdea073b0ef1e6aecd94b8a87a378a0f7bb78a08b89a9bbce7b81d42b",
+      "source_agent": "security_deterministic",
+      "perspective": "security",
+      "severity": "high",
+      "location": {
+        "path": "src/app.py",
+        "line_start": 35,
+        "line_end": 35
+      },
+      "claim": "Unsafe deserialization risk: pickle load/loads called on non-literal data.",
+      "evidence_ref": [
+        "file:src/app.py#35-35"
+      ],
+      "status": "contested",
+      "metadata": {
+        "rule_or_category": "security_baseline",
+        "sub_rule": "unsafe_deserialize",
+        "ast_node_id": "ast-unsafe_deserialize-35-4",
+        "evidence_anchor": "ast-unsafe_deserialize-35-4",
+        "debate_closed_reason": "The amount parameter is strictly validated as a float. Passing a float to pickle.loads raises a TypeError and crashes, which is a logic/denial-of-service bug, not an exploitable remote code execution path.",
+        "merged_from_provisional": [
+          "provisional-security-610ec08d-ec2d-4fcd-8479-551b4028519f"
+        ],
+        "ledger_disposition": "merged",
+        "merged_into": "merged-23e09ea0f186f720"
+      },
+      "recommended_next_action": null,
       "merged_from": []
     }
   ],
   "secret_scan_summary": [
     {
-      "id": "f-id-sec-sec-1",
-      "source_agent": "preflight_secret_gate",
-      "perspective": "security",
-      "severity": "high",
-      "location": {
-        "path": "src/app.py",
-        "line_start": 8,
-        "line_end": 8
-      },
-      "claim": "Google API Key exposed in tracked source code",
-      "evidence_ref": [],
-      "secret_type": "Google API Key",
-      "fingerprint": "salted_sha256_5a9b...7c805a91",
-      "exposure_status": "prompt_exposed"
-    },
-    {
-      "id": "f-id-sec-sec-2",
+      "id": "f7343197f028df5034b7474a8f06fde26ea3113f8da1e1a1fe76a5cccd5b3f27",
       "source_agent": "preflight_secret_gate",
       "perspective": "security",
       "severity": "info",
@@ -246,84 +1047,89 @@ const MOCK_DEMO_REPORT = {
         "line_start": 2,
         "line_end": 2
       },
-      "claim": "Database password configuration string in gitignored file",
-      "evidence_ref": [],
+      "claim": "Exposed Database Password in .env",
+      "evidence_ref": [
+        "file:.env#2"
+      ],
       "secret_type": "Database Password",
-      "fingerprint": "salted_sha256_e10c...3d25ef90",
+      "fingerprint": "sha256_9de672d8e47935a5_2345",
       "exposure_status": "ignored_by_root_gitignore"
-    }
-  ],
-  "omitted_findings": [
-    {
-      "id": "prov-style-issue-1",
-      "source_agent": "security_deterministic",
-      "perspective": "security",
-      "severity": "low",
-      "location": { "path": "src/app.py", "line_start": 22, "line_end": 22 },
-      "claim": "Inconsistent string quoting style on payout handler.",
-      "evidence_ref": ["file:src/app.py#22"],
-      "status": "active",
-      "metadata": {
-        "ledger_disposition": "omitted",
-        "omitted_reason": "Styling consistency finding below reporting floor (high) omitted."
-      },
-      "merged_from": []
-    }
-  ],
-  "merged_constituents": [
-    {
-      "id": "prov-auth-1",
-      "source_agent": "security_deterministic",
-      "perspective": "security",
-      "severity": "high",
-      "location": { "path": "src/app.py", "line_start": 14, "line_end": 16 },
-      "claim": "Missing auth decorator on write route '/admin/delete-product'.",
-      "evidence_ref": ["file:src/app.py#14-16"],
-      "status": "active",
-      "metadata": {
-        "ledger_disposition": "merged",
-        "merged_into": "e3020610360a0b2304910cf90df93108c908581e285a9bc8926a9f4c398e82ef"
-      },
-      "merged_from": []
     },
     {
-      "id": "prov-auth-2",
-      "source_agent": "security_deterministic",
+      "id": "e459898e72497b58ab164abc3a185fd1b7891fdf0931513814a563e87495aecf",
+      "source_agent": "preflight_secret_gate",
       "perspective": "security",
       "severity": "high",
-      "location": { "path": "src/app.py", "line_start": 27, "line_end": 29 },
-      "claim": "Missing auth decorator on write route '/admin/reset-prices'.",
-      "evidence_ref": ["file:src/app.py#27-29"],
-      "status": "active",
-      "metadata": {
-        "ledger_disposition": "merged",
-        "merged_into": "e3020610360a0b2304910cf90df93108c908581e285a9bc8926a9f4c398e82ef"
+      "location": {
+        "path": "src/app.py",
+        "line_start": 11,
+        "line_end": 11
       },
-      "merged_from": []
+      "claim": "Exposed Google API Key in src/app.py",
+      "evidence_ref": [
+        "file:src/app.py#11"
+      ],
+      "secret_type": "Google API Key",
+      "fingerprint": "sha256_538e2cfb433f7d06_9012",
+      "exposure_status": "prompt_exposed"
     }
   ],
   "accounting_ledger": {
     "included": [
-      "cb1a79f04bbdbce83a45c38668798e4a9e5b62a6321287c805a691bc2e84c98f",
-      "e3020610360a0b2304910cf90df93108c908581e285a9bc8926a9f4c398e82ef",
-      "d04a6015b6cd98eb931e2478e87d0e49be8b7b2a6321287c805a691bc2e84c98e",
-      "782f91a0cde0e35905187e1a3bc79e8a9d03281e285a9bc8926a9f4c398e8111",
-      "993a4b08b3c9ef9104810cf90df93108c908581e285a9bc8926a9f4c398e8122"
+      "merged-6f9f7413fd749d9c",
+      "merged-2f5fdd9c293d27d0",
+      "merged-183b99257b673e39",
+      "3148dac7429cfe13fa30ceea4373f31cf8c871b5b19cb0016fdd833fd43dd53c"
     ],
     "merged": [
       {
-        "output_id": "e3020610360a0b2304910cf90df93108c908581e285a9bc8926a9f4c398e82ef",
-        "input_ids": ["prov-auth-1", "prov-auth-2"]
+        "output_id": "merged-6f9f7413fd749d9c",
+        "input_ids": [
+          "ce4c5268df3c0b5211a8e35dbbbadc3abf8a7b730dbada16da0cd44ca236d82a",
+          "0a2301af8534fd1d31a4d93f9ab1619517404d49c63909474b2daf28d31a35de"
+        ]
+      },
+      {
+        "output_id": "merged-7d9d527f5b0568a5",
+        "input_ids": [
+          "343739c62487fc641e0d6024b3428fc6432eca930c8b0ceecf3d4aaf19db26f4",
+          "8932eeffa7df484c9d34cb19c275fcab0ddd78d06b5927a6753b509f8dee13cc"
+        ]
+      },
+      {
+        "output_id": "merged-2f5fdd9c293d27d0",
+        "input_ids": [
+          "ced88143ca0827765160601f5718fc5514858a36c80f33adba296edf08b492fb",
+          "cd83f565c2015c4db3e71c1761969c49a99aab04bb473add6953dd4a1492c50c",
+          "66594da6dc9c7e811293b01ae026352a4fcf797add814d483f1f2d0a6a14a496"
+        ]
+      },
+      {
+        "output_id": "merged-183b99257b673e39",
+        "input_ids": [
+          "55c0f853c2be94d10bddf4cd0e57968d1fc38cbe6ef056d4282ebaa83613b399",
+          "b67d961101bda8e8d88863d63c6f46dfd2e0fd198ae75fa776c66cc6dab14059"
+        ]
+      },
+      {
+        "output_id": "merged-23e09ea0f186f720",
+        "input_ids": [
+          "cabaceba9a248214eaa5317b9a3939fb1c35e3b4e58fb40d82dd32622084697f",
+          "51917c25934b8ef085b757d2bc2cff37858fa230c89b14d32cf9859fd245a155",
+          "10056dce572bdc1d4f0c6e8eddaf22f1e5e924650c7400bb217dd6554b4398bd",
+          "622b654fdea073b0ef1e6aecd94b8a87a378a0f7bb78a08b89a9bbce7b81d42b"
+        ]
       }
     ],
     "omitted": [
       {
-        "id": "prov-style-issue-1",
-        "reason": "Styling consistency finding below reporting floor (high) omitted."
+        "id": "3d5fd1eb9d4f2ea1b275128175e6c6edb4dd91796bfec425ae0838ddb8ae13e2",
+        "reason": "Low-severity call graph dependency finding that is highly redundant and does not represent an actual vulnerability or code defect."
       }
     ],
     "contested": [
-      "8f39a061bce839e204910cf90df93108c908581e285a9bc8926a9f4c398e8def"
+      "merged-7d9d527f5b0568a5",
+      "merged-23e09ea0f186f720"
     ]
   },
   "validator_warnings": []
