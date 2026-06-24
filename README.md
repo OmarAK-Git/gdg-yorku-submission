@@ -31,7 +31,7 @@ Our system resolves these challenges by combining **deterministic AST-based secu
 * **Optional Upgrades Implemented**:
   1. **Generative Security Debate Loop**: Gemini Defender vs. Claude Challenger adversarial debate with delta score convergence stop-conditions.
   2. **Orbit Blast-Radius Specialist**: Integrates with GitLab Knowledge Graph queries to evaluate the impact of changing functions or variables, complete with fail-safes.
-* **Test Posture**: The system passes **333 tests** (100% pass rate) spanning parser edge cases, secret scanning, coordinate-join mappings, and E2E review uploads. We are currently preparing for final E2E verification and video recording.
+* **Test Posture**: The system passes **369 tests** (100% pass rate) spanning parser edge cases, secret scanning, coordinate-join mappings, and E2E review uploads. We are currently preparing for final E2E verification and video recording.
 
 ---
 

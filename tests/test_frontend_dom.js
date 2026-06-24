@@ -228,25 +228,27 @@ assert.strictEqual(highTabCount.textContent, 2);
 
 // Test Case 3: Check findings rendering and filtering
 const findingsList = documentMock.getElementById('findings-list');
-// Initial load shows active findings (5 total)
-assert.strictEqual(findingsList.children.length, 5);
+// Initial load shows 5 active findings, then a ledger-provenance divider plus the
+// mock's 3 parsed-out snapshots (1 omitted + 2 merged constituents) = 9 children.
+assert.strictEqual(findingsList.children.length, 9);
 
 // Toggle the "correctness" perspective filter on (multi-select buttons)
 filterCorrectness.dispatchEvent('click');
 // Correctness count should be 2
 assert.strictEqual(findingsList.children.length, 2);
 
-// Click "All" to reset the perspective filter
+// Click "All" to reset the perspective filter (5 active + divider + 3 provenance)
 filterAll.dispatchEvent('click');
-assert.strictEqual(findingsList.children.length, 5);
+assert.strictEqual(findingsList.children.length, 9);
 
-// Flip tab to High/Critical
+// Flip tab to High/Critical: 2 high/critical active + divider + 2 high merged constituents
+// (the omitted snapshot is low severity, so it is filtered out of this tab).
 tabs[1].dispatchEvent('click'); // Click tab-high
-assert.strictEqual(findingsList.children.length, 2); // cb1a79f... and e302061...
+assert.strictEqual(findingsList.children.length, 5); // cb1a79f..., e302061..., + 2 merged constituents
 
-// Flip tab back to All
+// Flip tab back to All (5 active + divider + 3 provenance)
 tabs[0].dispatchEvent('click'); // Click tab-all
-assert.strictEqual(findingsList.children.length, 5);
+assert.strictEqual(findingsList.children.length, 9);
 
 // Test Case 4: Zero Secret Leakage schema and delegation assertion (REQ-17-2)
 // NOTE: Client-side UI trusts the upstream coordinator/agents for credential redaction (delegated to Task 7).

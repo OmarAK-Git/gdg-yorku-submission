@@ -275,7 +275,8 @@ def test_compile_report_budget_exhaustion_fallback(base_corpus):
     orch.run_specialist("correctness", lambda: ([f1], "complete", ""))
     
     state = orch._get_state()
-    state["budget"]["used_cost_usd"] = 3.0
+    # Push spend above the configured max_cost_usd cap so the coordinator lease is denied.
+    state["budget"]["used_cost_usd"] = state["budget"]["max_cost_usd"] + 1.0
     orch._save_state(state)
     
     fake_client = GeminiClient(use_fake=True, fake_responses=["{}"])

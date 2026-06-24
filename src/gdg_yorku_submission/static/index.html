@@ -226,10 +226,17 @@
 
         <!-- Tab Panel: Contested Items -->
         <div id="panel-contested" class="tab-panel-content hidden">
-          <h2>Contested Debate Submissions</h2>
-          <p class="panel-desc">These items were flagged by the security challenger but successfully defended or remain unresolved. They are tracked separately in the ledger.</p>
+          <h2>Contested Findings</h2>
+          <p class="panel-desc">
+            <strong>What "contested" means:</strong> the security challenger (Claude) raised these,
+            but the usability defender (Gemini) pushed back &mdash; rejecting them as not-exploitable / out-of-scope,
+            or asking for a change. Because each one is still <em>grounded in real code</em> and serious enough that
+            silently dropping it would be dishonest, the system refuses to auto-include <em>or</em> auto-drop it.
+            Instead it parks the finding here for <strong>you to make the call</strong>. Nothing on this list was
+            thrown away &mdash; it is the unresolved middle ground between "kept" and "dropped".
+          </p>
           <div id="contested-list" class="findings-list-container">
-            <!-- Dynamic contested items go here -->
+            <!-- Dynamic contested table goes here -->
             <p class="placeholder-text">No contested items in this report.</p>
           </div>
         </div>

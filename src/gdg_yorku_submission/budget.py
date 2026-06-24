@@ -2,11 +2,11 @@ from pydantic import BaseModel, Field
 from typing import Literal, Dict, Any
 
 class RunBudget(BaseModel):
-    max_total_tokens: int = Field(100000, description="Max total tokens across all LLM calls")
-    max_gemini_tokens: int = Field(80000, description="Max tokens for Gemini model calls")
-    max_claude_tokens: int = Field(20000, description="Max tokens for Claude model calls")
-    max_llm_calls: int = Field(10, description="Max number of LLM calls allowed")
-    max_cost_usd: float = Field(2.0, description="Max total cost in USD")
+    max_total_tokens: int = Field(200000, description="Max total tokens across all LLM calls")
+    max_gemini_tokens: int = Field(160000, description="Max tokens for Gemini model calls")
+    max_claude_tokens: int = Field(40000, description="Max tokens for Claude model calls")
+    max_llm_calls: int = Field(20, description="Max number of LLM calls allowed")
+    max_cost_usd: float = Field(4.0, description="Max total cost in USD")
     
     used_total_tokens: int = Field(0, description="Total tokens used so far")
     used_gemini_tokens: int = Field(0, description="Gemini tokens used so far")

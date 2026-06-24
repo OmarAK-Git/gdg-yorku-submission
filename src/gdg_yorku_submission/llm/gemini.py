@@ -113,7 +113,7 @@ class GeminiClient:
                             "line_end": 10
                         },
                         "claim": "[SYNTHETIC-DEFAULT] Default mock correctness finding.",
-                        "evidence_ref": ["file:SPEC.md#12-14"],
+                        "evidence_ref": ["file:SPEC.md#8-10"],
                         "status": "active",
                         "metadata": {}
                     }
@@ -137,7 +137,7 @@ class GeminiClient:
                     from functools import cached_property
                     from google.genai import Client
 
-                    model_name = os.getenv("GEMINI_MODEL", "gemini-3.1-pro-preview")
+                    model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
 
                     class VertexGemini(Gemini):
                         @cached_property
@@ -305,7 +305,7 @@ class GeminiClient:
                         "environment variables were detected."
                     )
 
-                model_name = os.getenv("GEMINI_MODEL", "gemini-3.1-pro-preview")
+                model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
 
                 config_args = {}
                 if response_schema:

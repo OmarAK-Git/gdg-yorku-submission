@@ -462,7 +462,8 @@ class Orchestrator(abc.ABC):
             statuses,
             state["gate_status"],
             compilation_mode="terminal_fallback",
-            secret_scan_summary=sanitized_gate_findings
+            secret_scan_summary=sanitized_gate_findings,
+            input_findings=findings
         )
         report.validator_warnings = terminal_warnings
         
@@ -539,7 +540,8 @@ class Orchestrator(abc.ABC):
                 ledger,
                 statuses,
                 state["gate_status"],
-                compilation_mode="coordinated"
+                compilation_mode="coordinated",
+                input_findings=findings
             )
         except Exception as e:
             logger.error(f"CRITICAL: Report construction or K-cap remediation logic crashed: {e}", exc_info=True)

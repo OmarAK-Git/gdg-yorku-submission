@@ -230,6 +230,24 @@ class ReviewReport(BaseModel):
         default_factory=list,
         description="Debated findings marked as contested"
     )
+    omitted_findings: List[ReportFinding] = Field(
+        default_factory=list,
+        description=(
+            "Full-detail snapshots of findings the coordinator omitted (parsed out of the "
+            "final report). Informational only — these are NOT part of the conservation "
+            "invariant's findings list. Each carries metadata.ledger_disposition='omitted' "
+            "and metadata.omitted_reason. Joinable to accounting_ledger.omitted by id."
+        )
+    )
+    merged_constituents: List[ReportFinding] = Field(
+        default_factory=list,
+        description=(
+            "Full-detail snapshots of input findings that were folded into a consolidated "
+            "(merged) finding. Informational only. Each carries metadata.ledger_disposition="
+            "'merged' and metadata.merged_into (the output finding id). Joinable to "
+            "accounting_ledger.merged by id."
+        )
+    )
     secret_scan_summary: List[GateFinding] = Field(
         default_factory=list,
         description="Summary of secret findings"

@@ -218,7 +218,8 @@ def run_coordinator_compilation(
                     draft_ledger,
                     statuses,
                     gate_status,
-                    compilation_mode="coordinated"
+                    compilation_mode="coordinated",
+                    input_findings=input_findings
                 )
                 
                 errors = validate_report_invariants(draft_report, input_findings, corpus)

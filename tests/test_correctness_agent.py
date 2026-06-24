@@ -36,7 +36,7 @@ def test_budget_initialization():
     assert "budget" in state
     budget = RunBudget(**state["budget"])
     assert budget.used_llm_calls == 0
-    assert budget.max_total_tokens == 100000
+    assert budget.max_total_tokens == 200000
 
 def test_acquire_lease_success():
     orch = InProcessOrchestrator()

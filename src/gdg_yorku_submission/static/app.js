@@ -215,6 +215,7 @@ const MOCK_DEMO_REPORT = {
       "evidence_ref": ["file:pyproject.toml#12"],
       "status": "contested",
       "recommended_next_action": "Upgrade requests to >=2.28.0 to resolve CVE-2022-28108. (Challenger contested finding, defended as out-of-scope for correctness baseline).",
+      "metadata": { "debate_closed_reason": "Defender: a pinned-but-old dependency is a maintenance/hygiene concern, not an exploitable path in this corpus — no untrusted input reaches the affected code. Recommend tracking it, not blocking ship." },
       "merged_from": []
     }
   ],
@@ -250,6 +251,55 @@ const MOCK_DEMO_REPORT = {
       "secret_type": "Database Password",
       "fingerprint": "salted_sha256_e10c...3d25ef90",
       "exposure_status": "ignored_by_root_gitignore"
+    }
+  ],
+  "omitted_findings": [
+    {
+      "id": "prov-style-issue-1",
+      "source_agent": "security_deterministic",
+      "perspective": "security",
+      "severity": "low",
+      "location": { "path": "src/app.py", "line_start": 22, "line_end": 22 },
+      "claim": "Inconsistent string quoting style on payout handler.",
+      "evidence_ref": ["file:src/app.py#22"],
+      "status": "active",
+      "metadata": {
+        "ledger_disposition": "omitted",
+        "omitted_reason": "Styling consistency finding below reporting floor (high) omitted."
+      },
+      "merged_from": []
+    }
+  ],
+  "merged_constituents": [
+    {
+      "id": "prov-auth-1",
+      "source_agent": "security_deterministic",
+      "perspective": "security",
+      "severity": "high",
+      "location": { "path": "src/app.py", "line_start": 14, "line_end": 16 },
+      "claim": "Missing auth decorator on write route '/admin/delete-product'.",
+      "evidence_ref": ["file:src/app.py#14-16"],
+      "status": "active",
+      "metadata": {
+        "ledger_disposition": "merged",
+        "merged_into": "e3020610360a0b2304910cf90df93108c908581e285a9bc8926a9f4c398e82ef"
+      },
+      "merged_from": []
+    },
+    {
+      "id": "prov-auth-2",
+      "source_agent": "security_deterministic",
+      "perspective": "security",
+      "severity": "high",
+      "location": { "path": "src/app.py", "line_start": 27, "line_end": 29 },
+      "claim": "Missing auth decorator on write route '/admin/reset-prices'.",
+      "evidence_ref": ["file:src/app.py#27-29"],
+      "status": "active",
+      "metadata": {
+        "ledger_disposition": "merged",
+        "merged_into": "e3020610360a0b2304910cf90df93108c908581e285a9bc8926a9f4c398e82ef"
+      },
+      "merged_from": []
     }
   ],
   "accounting_ledger": {
@@ -1101,6 +1151,10 @@ function loadReportData(report) {
 /**
  * Render standard findings list using DOM template builders
  */
+function isHighOrCritical(severity) {
+  return severity === 'high' || severity === 'critical';
+}
+
 function renderFindingsList() {
   const container = document.getElementById('findings-list');
   container.innerHTML = '';
@@ -1117,7 +1171,20 @@ function renderFindingsList() {
   // Apply perspective filter
   filtered = filtered.filter(f => matchesPerspectiveFilter(f));
 
-  if (filtered.length === 0) {
+  // Ledger provenance: omitted findings and merged constituents are parsed out of the
+  // final report but kept as full-detail snapshots. Surface them here (badged, greyed)
+  // so the ledger counters aren't dead ends — they live in their severity category and
+  // can be deep-linked to from the ledger. They are NOT part of report.findings, so they
+  // never affect severity counts or the conservation invariant.
+  let provenance = [
+    ...(currentReport.omitted_findings || []),
+    ...(currentReport.merged_constituents || []),
+  ].filter(f => matchesPerspectiveFilter(f));
+  if (activeTab === 'high') {
+    provenance = provenance.filter(f => isHighOrCritical(f.severity));
+  }
+
+  if (filtered.length === 0 && provenance.length === 0) {
     container.innerHTML = '<p class="placeholder-text">No findings matching the current filters.</p>';
     return;
   }
@@ -1125,6 +1192,17 @@ function renderFindingsList() {
   filtered.forEach(finding => {
     container.appendChild(createFindingCardDOM(finding));
   });
+
+  if (provenance.length > 0) {
+    const divider = document.createElement('div');
+    divider.className = 'provenance-divider';
+    divider.textContent = 'Parsed out of the final report (ledger provenance — not counted above)';
+    container.appendChild(divider);
+
+    provenance.forEach(finding => {
+      container.appendChild(createFindingCardDOM(finding));
+    });
+  }
 }
 
 /**
@@ -1139,9 +1217,89 @@ function renderContestedList() {
     return;
   }
 
-  currentReport.contested_items.forEach(finding => {
-    container.appendChild(createFindingCardDOM(finding));
+  const table = document.createElement('table');
+  table.className = 'contested-table';
+
+  const thead = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  ['Severity', 'Finding', 'Decision', "Why it's contested (rebuttal)"].forEach(label => {
+    const th = document.createElement('th');
+    th.textContent = label;
+    headRow.appendChild(th);
   });
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  currentReport.contested_items.forEach(finding => {
+    tbody.appendChild(createContestedRowDOM(finding));
+  });
+  table.appendChild(tbody);
+  container.appendChild(table);
+}
+
+/**
+ * Build one <tr> for the contested table. Surfaces, explicitly, what decision the
+ * pipeline made about a contested finding and the defender's rebuttal that put it here.
+ *
+ * Decision: contested findings are never silently dropped — they are retained pending a
+ * human ruling. We distinguish a plain retention from one that also consolidated several
+ * inputs (merged_from) so the column carries real signal.
+ *
+ * Rebuttal: the defender's reasoning is preserved at metadata.debate_closed_reason
+ * (set in the debate loop). Coordinator-merged contested items may lack it, so we degrade
+ * gracefully rather than show an empty cell.
+ */
+function createContestedRowDOM(finding) {
+  const tr = document.createElement('tr');
+  tr.className = 'contested-row';
+  tr.id = `finding-node-${finding.id}`;
+
+  // Severity
+  const tdSev = document.createElement('td');
+  const badge = document.createElement('span');
+  badge.className = `finding-severity-badge ${finding.severity}`;
+  badge.textContent = finding.severity;
+  tdSev.appendChild(badge);
+  tr.appendChild(tdSev);
+
+  // Finding (claim + location)
+  const tdClaim = document.createElement('td');
+  const claim = document.createElement('div');
+  claim.className = 'contested-claim';
+  claim.textContent = finding.claim;
+  tdClaim.appendChild(claim);
+  const loc = document.createElement('div');
+  loc.className = 'contested-loc';
+  loc.textContent = `${finding.location.path} : Lines ${finding.location.line_start} - ${finding.location.line_end}`;
+  tdClaim.appendChild(loc);
+  tr.appendChild(tdClaim);
+
+  // Decision
+  const tdDecision = document.createElement('td');
+  const decisionBadge = document.createElement('span');
+  decisionBadge.className = 'contested-decision-badge';
+  const wasMerged = finding.merged_from && finding.merged_from.length > 0;
+  decisionBadge.textContent = wasMerged
+    ? `Consolidated from ${finding.merged_from.length} — retained, awaiting your ruling`
+    : 'Retained — awaiting your ruling';
+  tdDecision.appendChild(decisionBadge);
+  const decisionNote = document.createElement('div');
+  decisionNote.className = 'contested-decision-note';
+  decisionNote.textContent = 'Not dropped, not auto-included. You decide: accept it or dismiss it.';
+  tdDecision.appendChild(decisionNote);
+  tr.appendChild(tdDecision);
+
+  // Rebuttal — defender's pushback that made it contested
+  const tdRebuttal = document.createElement('td');
+  tdRebuttal.className = 'contested-rebuttal';
+  const rebuttal = (finding.metadata && finding.metadata.debate_closed_reason)
+    || finding.recommended_next_action
+    || 'No recorded rebuttal — unresolved disagreement (defender requested a change or never accepted it).';
+  tdRebuttal.textContent = rebuttal;
+  tr.appendChild(tdRebuttal);
+
+  return tr;
 }
 
 /**
@@ -1229,6 +1387,7 @@ function renderLedgerList() {
             From inputs: ${escapeHtml(entry.input_ids.map(shortId).join(', '))}
           </div>
         </div>`;
+      attachLedgerNav(li, entry.output_id);
       mergedUl.appendChild(li);
     });
   } else {
@@ -1246,6 +1405,7 @@ function renderLedgerList() {
       li.innerHTML = `
         <strong>${escapeHtml(shortId(entry.id))}</strong>
         <span class="ledger-omit-reason">${escapeHtml(entry.reason)}</span>`;
+      attachLedgerNav(li, entry.id);
       omittedUl.appendChild(li);
     });
   } else {
@@ -1268,8 +1428,62 @@ function populateLedgerUl(elementId, idList) {
   idList.forEach(id => {
     const li = document.createElement('li');
     li.textContent = shortId(id);
+    attachLedgerNav(li, id);
     ul.appendChild(li);
   });
+}
+
+/**
+ * Make a ledger entry deep-link to the finding it refers to: clicking switches to the
+ * tab the card lives in (All Findings or Contested), clears the perspective filter so the
+ * target isn't hidden, then scrolls to and flashes the card. Entries whose finding has no
+ * card in the dashboard (e.g. omitted findings, pending the backend snapshot phase) are
+ * left as plain text.
+ */
+function findingHasCard(id) {
+  if (!currentReport) return false;
+  const inFindings = (currentReport.findings || []).some(f => f.id === id);
+  const inContested = (currentReport.contested_items || []).some(f => f.id === id);
+  const inOmitted = (currentReport.omitted_findings || []).some(f => f.id === id);
+  const inMerged = (currentReport.merged_constituents || []).some(f => f.id === id);
+  return inFindings || inContested || inOmitted || inMerged;
+}
+
+function attachLedgerNav(el, id) {
+  if (!findingHasCard(id)) return;
+  el.classList.add('ledger-clickable');
+  el.title = `Jump to ${id}`;
+  el.addEventListener('click', () => focusFinding(id));
+}
+
+function focusFinding(id) {
+  if (!currentReport) return;
+  const inContested = (currentReport.contested_items || []).some(f => f.id === id);
+  const tabBtnId = inContested ? 'tab-contested' : 'tab-all';
+
+  if (!inContested) {
+    // Reset perspective filter to "all" so the target card can't be filtered out.
+    activePerspectives = new Set(['all']);
+    document.querySelectorAll('.perspective-toggle').forEach(t => t.classList.remove('active'));
+    const allBtn = document.getElementById('filter-all');
+    if (allBtn) allBtn.classList.add('active');
+  }
+
+  const tabBtn = document.getElementById(tabBtnId);
+  if (tabBtn && typeof tabBtn.click === 'function') tabBtn.click();
+
+  // Defer the scroll/flash until the destination tab has rendered.
+  setTimeout(() => {
+    const node = document.getElementById(`finding-node-${id}`);
+    if (!node) return;
+    if (typeof node.scrollIntoView === 'function') {
+      node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    if (node.classList) {
+      node.classList.add('finding-flash');
+      setTimeout(() => node.classList.remove('finding-flash'), 1600);
+    }
+  }, 60);
 }
 
 /**
@@ -1277,10 +1491,30 @@ function populateLedgerUl(elementId, idList) {
  * @param {Object} finding
  * @returns {HTMLElement}
  */
+/**
+ * Human-facing label for the agent that produced a finding.
+ * Both deterministic and debate security findings come from one logical
+ * "security_agent"; we disambiguate the technique in parentheses rather than
+ * exposing the internal "security_deterministic"/"security_debate" source names.
+ */
+function sourceAgentLabel(sourceAgent) {
+  switch (sourceAgent) {
+    case 'security_deterministic': return 'security_agent (AST)';
+    case 'security_debate':        return 'security_agent (Adversarial Debate)';
+    default:                       return sourceAgent;
+  }
+}
+
 function createFindingCardDOM(finding) {
   const card = document.createElement('div');
   card.className = 'finding-card';
   card.id = `finding-node-${finding.id}`;
+
+  // Ledger-provenance findings (omitted / merged constituents) are visually distinct so
+  // they're never mistaken for active findings that made the cut.
+  const disposition = finding.metadata && finding.metadata.ledger_disposition;
+  if (disposition === 'omitted') card.classList.add('finding-omitted');
+  if (disposition === 'merged') card.classList.add('finding-merged-away');
 
   const summary = document.createElement('div');
   summary.className = 'finding-summary';
@@ -1289,6 +1523,15 @@ function createFindingCardDOM(finding) {
   badge.className = `finding-severity-badge ${finding.severity}`;
   badge.textContent = finding.severity;
   summary.appendChild(badge);
+
+  if (disposition === 'omitted' || disposition === 'merged') {
+    const dispBadge = document.createElement('span');
+    dispBadge.className = 'finding-disposition-badge';
+    dispBadge.textContent = disposition === 'omitted'
+      ? 'OMITTED'
+      : `MERGED → ${shortId(finding.metadata.merged_into || '')}`;
+    summary.appendChild(dispBadge);
+  }
 
   const meta = document.createElement('div');
   meta.className = 'finding-meta';
@@ -1305,7 +1548,7 @@ function createFindingCardDOM(finding) {
 
   const src = document.createElement('span');
   src.className = 'finding-source';
-  src.innerHTML = `Detected by: <span>${escapeHtml(finding.source_agent)}</span> (Perspective: <span>${escapeHtml(finding.perspective)}</span>)`;
+  src.innerHTML = `Detected by: <span>${escapeHtml(sourceAgentLabel(finding.source_agent))}</span>`;
   meta.appendChild(src);
 
   summary.appendChild(meta);
@@ -1326,6 +1569,20 @@ function createFindingCardDOM(finding) {
   idSec.className = 'detail-section';
   idSec.innerHTML = `<h4>Stable Finding ID</h4><p style="font-family: var(--font-mono); font-size: 0.75rem;">${escapeHtml(finding.id)}</p>`;
   details.appendChild(idSec);
+
+  // Ledger disposition explainer for parsed-out findings.
+  if (disposition === 'omitted' || disposition === 'merged') {
+    const dispSec = document.createElement('div');
+    dispSec.className = 'detail-section';
+    if (disposition === 'omitted') {
+      const reason = (finding.metadata && finding.metadata.omitted_reason) || 'No reason recorded.';
+      dispSec.innerHTML = `<h4>Why this was omitted</h4><p>${escapeHtml(reason)}</p>`;
+    } else {
+      const into = (finding.metadata && finding.metadata.merged_into) || '';
+      dispSec.innerHTML = `<h4>Merged into</h4><p>This finding was consolidated into <code>${escapeHtml(into)}</code> and is represented by that finding in the report.</p>`;
+    }
+    details.appendChild(dispSec);
+  }
 
   // Next Actions Section
   if (finding.recommended_next_action) {
@@ -1587,7 +1844,7 @@ function downloadReport() {
       findings.forEach(f => {
         md += `#### \\[${f.severity.toUpperCase()}\\] ${f.claim}\n\n`;
         md += `- **Location:** \`${f.location.path}\` lines ${f.location.line_start}-${f.location.line_end}\n`;
-        md += `- **Source Agent:** ${f.source_agent}\n`;
+        md += `- **Source Agent:** ${sourceAgentLabel(f.source_agent)}\n`;
         md += `- **Finding ID:** \`${f.id}\`\n`;
         if (f.evidence_ref && f.evidence_ref.length > 0) {
           md += `- **Evidence:** ${f.evidence_ref.map(r => '`' + r + '`').join(', ')}\n`;
@@ -1612,7 +1869,7 @@ function downloadReport() {
     report.contested_items.forEach(f => {
       md += `#### \\[${f.severity.toUpperCase()}\\] ${f.claim}\n\n`;
       md += `- **Location:** \`${f.location.path}\` lines ${f.location.line_start}-${f.location.line_end}\n`;
-      md += `- **Source Agent:** ${f.source_agent}\n`;
+      md += `- **Source Agent:** ${sourceAgentLabel(f.source_agent)}\n`;
       if (f.recommended_next_action) {
         md += `- **Note:** ${f.recommended_next_action}\n`;
       }

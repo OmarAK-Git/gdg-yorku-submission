@@ -167,6 +167,39 @@ def test_demo_correctness():
         assert finding.location.line_end == 27
         assert "ledger" in finding.claim
 
+def test_default_fakemode_correctness_finding_survives():
+    """Regression: the DEFAULT fake-mode correctness response (no injected fake_responses,
+    i.e. the path the CLI/API demo actually exercises) must cite in-bounds sample coordinates
+    so the finding survives evidence validation. Previously it cited SPEC.md#12-14 (SPEC.md is
+    12 lines), which the correctness agent rejected as out-of-bounds, silently dropping the
+    headline finding from the default demo run."""
+    import tempfile
+
+    zip_bytes = get_zip_bytes()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manifest = HardenedZipExtractor.extract(zip_bytes, tmpdir)
+        corpus = build_corpus(tmpdir, manifest)
+
+        orch = InProcessOrchestrator()
+        orch.start_run()
+
+        # Secret scanning/redaction is a precondition for Source-of-Truth discovery.
+        ctx = orch.get_redaction_context()
+        run_secret_scan(corpus, ctx)
+        orch.set_corpus(corpus)
+
+        # No fake_responses => GeminiClient returns its built-in default correctness JSON.
+        gemini = GeminiClient(use_fake=True)
+        findings, status, reason = run_correctness_review(orch, gemini_client=gemini)
+
+        assert status == "complete"
+        assert len(findings) >= 1, (
+            "Default fake-mode correctness finding was dropped — its evidence_ref likely "
+            "cites out-of-bounds sample coordinates again."
+        )
+        assert findings[0].source_agent == "correctness_agent"
+
+
 @pytest.mark.parametrize("orch_class", [InProcessOrchestrator, AdkOrchestrator])
 def test_demo_e2e_run(orch_class):
     """Asserts full E2E review run compiling a clean report without raw secret leakage."""

@@ -120,6 +120,16 @@ def run_correctness_review(
     valid_findings: List[ReviewFinding] = []
     
     for idx, raw_finding in enumerate(parsed_findings):
+        # Coerce identity fields before validation. The live ADK Runner path wraps the
+        # call in an LlmAgent whose name ("gemini_client_adk_agent") ADK injects into the
+        # model's framing; the model then echoes that name into source_agent, which trips
+        # the literal/source_agent guard in validate_correctness_finding and silently drops
+        # otherwise-valid findings. These fields are overwritten unconditionally when the
+        # ReviewFinding is built below, so trusting the model's value here serves no purpose.
+        if isinstance(raw_finding, dict):
+            raw_finding["source_agent"] = "correctness_agent"
+            raw_finding["perspective"] = "correctness"
+
         # Enforce schemas, source agents, severity caps, coordinate checks
         errors = validate_correctness_finding(raw_finding, has_spec=True)
         if errors:

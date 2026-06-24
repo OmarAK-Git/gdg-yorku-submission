@@ -79,7 +79,7 @@ async def call_gemini_adversary(
         return response_model.model_validate(dummy)
 
     # Real Gemini call
-    model_name = model or os.getenv("GEMINI_MODEL", "gemini-3.1-pro-preview")
+    model_name = model or os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
 
     import anyio
     from google import genai

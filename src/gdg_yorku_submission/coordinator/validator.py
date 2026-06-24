@@ -72,6 +72,78 @@ def remediate_contested_kcap(
                     )
     return contested_items, ledger
 
+def _snapshot_report_finding(f: Any, **extra_metadata: Any) -> ReportFinding:
+    """
+    Build an informational ReportFinding snapshot from an input finding, tagging it with
+    ledger-provenance metadata. Used to surface omitted findings and merged constituents
+    (which are otherwise discarded as bare IDs) with full detail in the dashboard.
+    """
+    meta = dict(getattr(f, "metadata", None) or {})
+    meta.update(extra_metadata)
+    return ReportFinding(
+        id=f.id,
+        source_agent=f.source_agent,
+        perspective=f.perspective,
+        severity=f.severity,
+        location=f.location,
+        claim=f.claim,
+        evidence_ref=list(f.evidence_ref),
+        status=f.status,
+        metadata=meta,
+        recommended_next_action=None,
+        merged_from=[],
+    )
+
+
+def derive_ledger_provenance(
+    ledger: AccountingLedger,
+    input_findings: List[ReviewFinding],
+) -> Tuple[List[ReportFinding], List[ReportFinding]]:
+    """
+    Reconstruct full-detail snapshots for findings that the ledger only references by ID:
+    omitted findings and merged constituents. Returns (omitted_findings, merged_constituents).
+
+    Both are informational and deliberately kept OUT of report.findings so the conservation
+    invariant (Inputs == Included U Merged U Omitted U Contested over report.findings/contested)
+    is unaffected. IDs that cannot be resolved against the input set are skipped rather than
+    raising (e.g. synthesized merge output IDs that are not original inputs).
+    """
+    input_map = {f.id: f for f in input_findings}
+
+    omitted_findings: List[ReportFinding] = []
+    for omit_entry in ledger.omitted:
+        src = input_map.get(omit_entry.id)
+        if src is None:
+            continue
+        omitted_findings.append(
+            _snapshot_report_finding(
+                src,
+                ledger_disposition="omitted",
+                omitted_reason=omit_entry.reason,
+            )
+        )
+
+    merged_constituents: List[ReportFinding] = []
+    seen_constituents: Set[str] = set()
+    for merge_entry in ledger.merged:
+        for cid in merge_entry.input_ids:
+            if cid in seen_constituents:
+                continue
+            src = input_map.get(cid)
+            if src is None:
+                continue
+            seen_constituents.add(cid)
+            merged_constituents.append(
+                _snapshot_report_finding(
+                    src,
+                    ledger_disposition="merged",
+                    merged_into=merge_entry.output_id,
+                )
+            )
+
+    return omitted_findings, merged_constituents
+
+
 def build_review_report(
     orch: Any,
     state: Dict[str, Any],
@@ -81,10 +153,16 @@ def build_review_report(
     statuses: List[PerspectiveStatus],
     gate_status: GateStatus,
     compilation_mode: str,
-    secret_scan_summary: Optional[List[Any]] = None
+    secret_scan_summary: Optional[List[Any]] = None,
+    input_findings: Optional[List[ReviewFinding]] = None
 ) -> ReviewReport:
     """
     Constructs the ReviewReport object consistently from the compiled findings and ledger state.
+
+    When input_findings is supplied, full-detail snapshots of omitted findings and merged
+    constituents are derived from the ledger and attached (omitted_findings / merged_constituents)
+    so the dashboard can surface them; these are informational and excluded from the conservation
+    invariant's findings list.
     """
     from gdg_yorku_submission.severity import is_at_or_above_floor
     import datetime
@@ -117,7 +195,12 @@ def build_review_report(
     
     if secret_scan_summary is None:
         secret_scan_summary = state.get("secret_scan_summary", [])
-        
+
+    omitted_findings: List[ReportFinding] = []
+    merged_constituents: List[ReportFinding] = []
+    if input_findings is not None:
+        omitted_findings, merged_constituents = derive_ledger_provenance(ledger, input_findings)
+
     return ReviewReport(
         run_metadata={
             **state.get("run_metadata", {}),
@@ -135,6 +218,8 @@ def build_review_report(
         high_critical_findings=high_critical,
         findings=findings,
         contested_items=contested,
+        omitted_findings=omitted_findings,
+        merged_constituents=merged_constituents,
         secret_scan_summary=secret_scan_summary,
         accounting_ledger=ledger,
         validator_warnings=[]

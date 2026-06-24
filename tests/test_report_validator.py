@@ -870,3 +870,47 @@ def test_validator_warnings_secret_redaction_coordinated(monkeypatch):
     assert all(secret_val not in w for w in report.validator_warnings)
 
 
+
+
+def test_derive_ledger_provenance_surfaces_omitted_and_constituents():
+    """Omitted findings and merged constituents must be reconstructable as full-detail
+    snapshots from the ledger + input findings, tagged with provenance metadata."""
+    from gdg_yorku_submission.coordinator.validator import derive_ledger_provenance
+
+    f1 = make_input_finding("f1", severity=Severity.HIGH)
+    f2 = make_input_finding("f2", severity=Severity.HIGH)
+    f_omit = make_input_finding("f_omit", severity=Severity.LOW)
+    inputs = [f1, f2, f_omit]
+
+    ledger = AccountingLedger(
+        included=["merged-1"],
+        merged=[MergeLedgerEntry(output_id="merged-1", input_ids=["f1", "f2"])],
+        omitted=[OmitLedgerEntry(id="f_omit", reason="Low-severity noise")],
+        contested=[],
+    )
+
+    omitted, constituents = derive_ledger_provenance(ledger, inputs)
+
+    assert [o.id for o in omitted] == ["f_omit"]
+    assert omitted[0].metadata["ledger_disposition"] == "omitted"
+    assert omitted[0].metadata["omitted_reason"] == "Low-severity noise"
+    assert omitted[0].claim == "Claim f_omit"
+
+    assert sorted(c.id for c in constituents) == ["f1", "f2"]
+    assert all(c.metadata["ledger_disposition"] == "merged" for c in constituents)
+    assert all(c.metadata["merged_into"] == "merged-1" for c in constituents)
+
+
+def test_derive_ledger_provenance_skips_unresolvable_ids():
+    """IDs that aren't original inputs (e.g. synthesized merge outputs) are skipped, not raised."""
+    from gdg_yorku_submission.coordinator.validator import derive_ledger_provenance
+
+    ledger = AccountingLedger(
+        included=[],
+        merged=[],
+        omitted=[OmitLedgerEntry(id="ghost", reason="not an input")],
+        contested=[],
+    )
+    omitted, constituents = derive_ledger_provenance(ledger, [])
+    assert omitted == []
+    assert constituents == []

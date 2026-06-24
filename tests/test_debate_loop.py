@@ -115,7 +115,8 @@ async def test_determinism():
 
     assert session1.model_dump() == session2.model_dump()
 
-# 2. Self-scoring guard: a side scoring its own proposal raises AssertionError.
+# 2. Self-scoring guard: a side scoring its own proposal earns no points and is
+#    skipped (with a warning) rather than crashing the debate loop.
 def test_self_scoring_guard():
     p_def = Proposal(
         id="D-R2-P1",
@@ -134,7 +135,7 @@ def test_self_scoring_guard():
         reasoning="reasoning"
     )
 
-    # Scorer is Defender, tries to score a Defender proposal -> Assert raises
+    # Scorer is Defender, tries to score a Defender proposal -> skipped, 0 points.
     round_data_def_violates = DebateRound(
         round_number=2,
         defender_turn=TurnResponse(
@@ -145,11 +146,10 @@ def test_self_scoring_guard():
         scores_this_round={}
     )
 
-    with pytest.raises(AssertionError) as excinfo:
-        score_round(round_data_def_violates, {"D-R2-P1": p_def})
-    assert "scorer" in str(excinfo.value)
+    gains = score_round(round_data_def_violates, {"D-R2-P1": p_def})
+    assert gains == {"defender": 0.0, "challenger": 0.0}
 
-    # Scorer is Challenger, tries to score a Challenger proposal -> Assert raises
+    # Scorer is Challenger, tries to score a Challenger proposal -> skipped, 0 points.
     round_data_chal_violates = DebateRound(
         round_number=2,
         challenger_turn=TurnResponse(
@@ -160,9 +160,8 @@ def test_self_scoring_guard():
         scores_this_round={}
     )
 
-    with pytest.raises(AssertionError) as excinfo:
-        score_round(round_data_chal_violates, {"C-R1-P1": p_chal})
-    assert "scorer" in str(excinfo.value)
+    gains = score_round(round_data_chal_violates, {"C-R1-P1": p_chal})
+    assert gains == {"defender": 0.0, "challenger": 0.0}
 
 # 3. Groundedness: an ungrounded "over-hardening" proposal is scored x0.2 and loses to a grounded one.
 def test_groundedness_penalty():
