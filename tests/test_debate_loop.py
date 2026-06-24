@@ -439,6 +439,55 @@ def test_severity_remap_correctness():
     for level, weight in expected_weights.items():
         assert SEVERITY_WEIGHTS[level] == weight
 
+# 9b. Lenient citation grounding: real findings survive sloppy citation FORMAT, while
+# citations to non-existent files/lines (the real hallucination signal) are still dropped.
+def _citation_corpus():
+    from gdg_yorku_submission.schemas import CorpusFile
+    return {
+        "src/app.py": CorpusFile(
+            normalized_path="src/app.py",
+            original_text="line\n" * 40,
+            redacted_text="line\n" * 40,
+            original_line_count=40,
+            redacted_to_original_line_map={i: i for i in range(1, 41)},
+            evidence_ref="file:src/app.py",
+            exposure_status="prompt_exposed",
+            ingest_status="success",
+            redaction_applied=True,
+        )
+    }
+
+
+@pytest.mark.parametrize("citation,expected", [
+    # The three real-world drops from production runs — all substantively valid findings:
+    ("src/app.py#14-37 (entire process_payout function)", ("src/app.py", 14, 37)),
+    ("src/app.py, function process_payout, parameter 'amount: float' ... at line 23", ("src/app.py", 23, 23)),
+    ("src/app.py, line 31: subprocess.run(f'echo {user_id}', shell=True)", ("src/app.py", 31, 31)),
+    # Clean anchor and file-prefixed forms still work.
+    ("src/app.py#13-14", ("src/app.py", 13, 14)),
+    ("file:src/app.py#11", ("src/app.py", 11, 11)),
+    # Path with no usable line ref grounds to the whole file rather than dropping.
+    ("see src/app.py for details", ("src/app.py", 1, 40)),
+])
+def test_resolve_generative_citation_recovers_sloppy_format(citation, expected):
+    from gdg_yorku_submission.security.debate import resolve_generative_citation
+    result = resolve_generative_citation(citation, _citation_corpus())
+    assert result is not None, f"should have grounded: {citation}"
+    path, start, end, _ = result
+    assert (path, start, end) == expected
+
+
+@pytest.mark.parametrize("citation", [
+    "NONE",
+    "",
+    "src/does_not_exist.py#1-2",          # path not in corpus -> real hallucination
+    "src/app.py#900-950",                 # lines outside the 40-line file -> real hallucination
+])
+def test_resolve_generative_citation_rejects_hallucinated_locations(citation):
+    from gdg_yorku_submission.security.debate import resolve_generative_citation
+    assert resolve_generative_citation(citation, _citation_corpus()) is None
+
+
 # 10. No openai/GPT import remains (grep test).
 def test_no_openai_gpt_imports():
     # Assert 'openai' or 'gpt' is not imported anywhere

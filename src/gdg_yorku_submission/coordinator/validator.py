@@ -306,19 +306,22 @@ def validate_report_invariants(
                 f"which does not exactly equal the max constituent severity '{max_constituent_sev.value}'"
             )
             
-        # Check merge perspective/agent isolation
+        # Check merge perspective/agent/status isolation. Status is an isolation boundary
+        # so a contested finding (awaiting human ruling) can never be absorbed into an
+        # active merged finding and disappear from the contested set.
         first_const = input_map[constituents[0]] if constituents[0] in input_map else None
         if first_const:
             expected_p = first_const.perspective
             expected_a = first_const.source_agent
+            expected_s = first_const.status
             for cid in constituents:
                 if cid in input_map:
                     c = input_map[cid]
-                    if c.perspective != expected_p or c.source_agent != expected_a:
+                    if c.perspective != expected_p or c.source_agent != expected_a or c.status != expected_s:
                         errors.append(
-                            f"Merged findings must belong to the same perspective and source agent. "
-                            f"Cannot merge '{cid}' ({c.perspective}/{c.source_agent}) with "
-                            f"'{constituents[0]}' ({expected_p}/{expected_a})"
+                            f"Merged findings must belong to the same perspective, source agent, and status. "
+                            f"Cannot merge '{cid}' ({c.perspective}/{c.source_agent}/{c.status}) with "
+                            f"'{constituents[0]}' ({expected_p}/{expected_a}/{expected_s})"
                         )
                         break
 

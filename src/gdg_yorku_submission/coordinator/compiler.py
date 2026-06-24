@@ -143,7 +143,8 @@ def run_coordinator_compilation(
         f'</evidence_plane nonce="{nonce}">\n\n'
         "Strict Rules:\n"
         "1. Merging:\n"
-        "   - You can only merge findings that belong to the SAME perspective AND the SAME source_agent.\n"
+        "   - You can only merge findings that belong to the SAME perspective, the SAME source_agent, AND the SAME status.\n"
+        "   - NEVER merge a 'contested' finding with an 'active' one: contested findings await a human ruling and must stay separate.\n"
         "   - For any merged group, you must specify all their original IDs in `merged_ids`.\n"
         "   - You must write a consolidated claim summarizing the merged findings in `consolidated_claim`.\n"
         "   - You must write a recommended next action for the merged finding in `recommended_next_action`.\n"
@@ -288,15 +289,19 @@ def reconstruct_report_components(
 
         constituents = [input_map[fid] for fid in valid_constituents]
         
-        # Verify perspective and source agent isolation
+        # Verify perspective, source agent, AND status isolation. Status is a merge
+        # boundary because a contested finding (awaiting a human ruling) must never be
+        # absorbed into an active merged finding — doing so erases it from the contested
+        # set and the precedence logic below would silently promote it to active.
         expected_p = constituents[0].perspective
         expected_a = constituents[0].source_agent
+        expected_s = constituents[0].status
         mismatched = False
         for c in constituents:
-            if c.perspective != expected_p or c.source_agent != expected_a:
+            if c.perspective != expected_p or c.source_agent != expected_a or c.status != expected_s:
                 errors.append(
-                    f"Cannot merge finding '{c.id}' ({c.perspective}/{c.source_agent}) with "
-                    f"'{constituents[0].id}' ({expected_p}/{expected_a}) - mismatched isolation boundary"
+                    f"Cannot merge finding '{c.id}' ({c.perspective}/{c.source_agent}/{c.status}) with "
+                    f"'{constituents[0].id}' ({expected_p}/{expected_a}/{expected_s}) - mismatched isolation boundary"
                 )
                 mismatched = True
                 break
@@ -330,9 +335,9 @@ def reconstruct_report_components(
                 if ref not in evidence_refs:
                     evidence_refs.append(ref)
 
-        # Precedence for status: active > contested > advisory
-        status_ranks = {"active": 3, "contested": 2, "advisory": 1}
-        merged_status = max(constituents, key=lambda c: status_ranks.get(c.status, 0)).status
+        # Status is uniform across constituents (enforced by the isolation check above),
+        # so the merged finding inherits it directly rather than resolving a precedence.
+        merged_status = expected_s
 
         # Merge metadata
         merged_metadata = {}

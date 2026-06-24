@@ -152,7 +152,7 @@ def test_validator_detects_cross_perspective_merge_direct(base_corpus):
     )
     
     errors = validate_report_invariants(report, [f_corr, f_sec], base_corpus)
-    assert any("belong to the same perspective and source agent" in e for e in errors)
+    assert any("belong to the same perspective, source agent, and status" in e for e in errors)
 
 # --- Point 3: Conservation Violation Testing ---
 def test_validator_detects_holed_ledger(base_corpus):

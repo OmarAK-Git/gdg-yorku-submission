@@ -1,6 +1,7 @@
 import uuid
 import logging
 import hashlib
+import re
 import secrets
 from typing import List, Dict, Any, Callable, Tuple, Optional
 from gdg_yorku_submission.schemas import Finding, Location
@@ -24,6 +25,75 @@ from gdg_yorku_submission.security.claude_adapter import call_claude_adversary
 from gdg_yorku_submission.budget import BudgetExhaustedError
 
 logger = logging.getLogger(__name__)
+
+
+# Line references the model writes in free text, in priority order. We accept the strict
+# "#start-end" anchor first, then degrade to prose forms ("lines 14-37", "line 23",
+# "at line 31"). This is deliberately lenient on FORMAT — the anti-hallucination guarantee
+# comes entirely from the corpus-path + in-bounds checks in resolve_generative_citation,
+# NOT from the citation being syntactically pretty. Dropping a real, in-bounds finding
+# because the model wrote "line 31" instead of "#31" loses recall for no safety gain.
+_LINE_REF_PATTERNS = (
+    re.compile(r"#\s*(\d+)\s*(?:[-–]\s*(\d+))?"),
+    re.compile(r"lines?\s+(\d+)\s*(?:[-–]|to)\s*(\d+)", re.IGNORECASE),
+    re.compile(r"lines?\s+(\d+)", re.IGNORECASE),
+)
+
+
+def resolve_generative_citation(
+    citation_str: str, corpus: Dict[str, Any]
+) -> Optional[Tuple[str, int, int, str]]:
+    """
+    Resolve a free-text groundedness citation to a concrete corpus location.
+
+    Returns (corpus_path, line_start, line_end, evidence_ref) if the citation names a
+    REAL corpus file at IN-BOUNDS lines, else None. Format is parsed leniently (the path
+    may be embedded in prose, the line range may be "#14-37", "lines 14-37", "line 23",
+    or absent), but truth is checked strictly: the path must match a corpus key and the
+    line range must satisfy 1 <= start <= end <= file length. A citation to a file that
+    does not exist, or to lines outside the file, still returns None — that is the actual
+    hallucination signal, and it is preserved.
+    """
+    if not citation_str or citation_str == "NONE":
+        return None
+
+    normalized = citation_str.replace("\\", "/").replace("file:", "").lower()
+
+    # Match the longest corpus key that appears in the citation, so "src/app.py" wins over
+    # a bare "app.py" when both are indexed and the path is buried in a sentence.
+    matched_key = None
+    for k in sorted(corpus.keys(), key=len, reverse=True):
+        if k.lower() in normalized:
+            matched_key = k
+            break
+    if matched_key is None:
+        return None
+
+    corpus_file = corpus[matched_key]
+    max_lines = corpus_file.original_line_count
+
+    # Extract a line range from the first pattern that matches; default to the whole-file
+    # span when the model gave a path but no usable line reference (grounded to the file,
+    # exact lines unspecified — honest rather than silently pinning to line 1).
+    line_start, line_end = 1, max_lines
+    for pat in _LINE_REF_PATTERNS:
+        m = pat.search(normalized)
+        if m:
+            line_start = int(m.group(1))
+            has_end = m.re.groups >= 2 and m.group(2)
+            line_end = int(m.group(2)) if has_end else line_start
+            break
+
+    if line_end < line_start:
+        line_start, line_end = line_end, line_start
+
+    # Truth check (the real anti-hallucination guard): lines must exist in the file.
+    if not (1 <= line_start <= line_end <= max_lines):
+        return None
+
+    evidence_ref = f"file:{matched_key}#{line_start}-{line_end}"
+    return matched_key, line_start, line_end, evidence_ref
+
 
 SEQUENTIAL_INSTRUCTIONS = """
 PHASE: SEQUENTIAL DEBATE TURN
@@ -109,11 +179,18 @@ def session_to_transcript(session: DebateSession, redaction_ctx: Optional[Any] =
     resolutions: List[Dict[str, Any]] = []
     for c in session.ledger.candidates:
         sev = c.finding.severity
+        # Contested findings carry closed_reason=None (no terminal verdict), but the
+        # defender's pushback that put them in contention is preserved on the finding
+        # metadata. Fall back to it so the Resolutions reasoning column is never empty
+        # for a contested high-severity item — matching what the UI contested table shows.
+        reason = c.closed_reason
+        if not reason and c.finding.metadata:
+            reason = c.finding.metadata.get("debate_closed_reason")
         resolutions.append({
             "claim": _redact(c.finding.claim),
             "severity": sev.value if hasattr(sev, "value") else str(sev),
             "resolution": c.resolution,
-            "closed_reason": _redact(c.closed_reason) if c.closed_reason else None,
+            "closed_reason": _redact(reason) if reason else None,
         })
 
     seed = 0
@@ -592,59 +669,21 @@ async def run_debate_loop(
         else:
             # Generative finding: derive provisional ID deterministically from stable anchor (citation + claim hash)
             citation_str = p.groundednessCitation if p.groundednessCitation else "NONE"
-            
-            evidence_refs = []
-            loc_path = "unknown"
-            loc_start = 1
-            loc_end = 1
-            resolved_valid = False
-            
-            if citation_str != "NONE":
-                raw_citation = citation_str
-                if raw_citation.startswith("file:"):
-                    raw_citation = raw_citation[5:]
-                parts = raw_citation.split("#")
-                raw_path = parts[0].strip()
-                
-                # Normalize path
-                normalized_raw_path = raw_path.replace("\\", "/").lower()
-                
-                # Check corpus
-                corpus = orch.get_corpus() if hasattr(orch, "get_corpus") else {}
-                matched_key = None
-                for k in corpus.keys():
-                    if k.lower() == normalized_raw_path:
-                        matched_key = k
-                        break
-                        
-                if matched_key:
-                    corpus_file = corpus[matched_key]
-                    line_start = 1
-                    line_end = 1
-                    if len(parts) > 1:
-                        line_parts = parts[1].split("-")
-                        try:
-                            line_start = int(line_parts[0])
-                            if len(line_parts) > 1:
-                                line_end = int(line_parts[1])
-                            else:
-                                line_end = line_start
-                        except ValueError:
-                            pass
-                            
-                    # Bounds check
-                    if 1 <= line_start <= line_end <= corpus_file.original_line_count:
-                        loc_path = matched_key
-                        loc_start = line_start
-                        loc_end = line_end
-                        evidence_refs = [f"file:{matched_key}#{line_start}-{line_end}"]
-                        resolved_valid = True
 
-            if not resolved_valid:
+            corpus = orch.get_corpus() if hasattr(orch, "get_corpus") else {}
+            resolved = resolve_generative_citation(citation_str, corpus)
+
+            if resolved is None:
+                # Genuinely ungrounded: the cited file/lines do not exist in the corpus
+                # (the real hallucination signal). Format alone never drops a finding here.
                 logger.warning(
-                    f"Dropping ungrounded/invalid generative finding proposal: claim={p.text}, citation={citation_str}"
+                    f"Dropping ungrounded generative finding (cited location not found in corpus): "
+                    f"claim={p.text}, citation={citation_str}"
                 )
                 continue
+
+            loc_path, loc_start, loc_end, evidence_ref = resolved
+            evidence_refs = [evidence_ref]
 
             stable_hash = hashlib.sha256(f"{citation_str}:{p.text}".encode("utf-8")).hexdigest()
             finding_id = f"security-{stable_hash[:12]}"

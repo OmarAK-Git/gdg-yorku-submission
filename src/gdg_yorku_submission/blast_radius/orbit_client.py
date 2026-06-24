@@ -67,12 +67,20 @@ class OrbitClient:
         api_token: Optional[str] = None,
         project_path: Optional[str] = None,
         use_fake: Optional[bool] = None,
-        timeout: float = 5.0,
+        timeout: Optional[float] = None,
         fake_results: Optional[Dict[str, OrbitQueryResult]] = None
     ) -> None:
         self.api_url = api_url or os.getenv("ORBIT_API_URL")
         self.api_token = api_token or os.getenv("ORBIT_API_TOKEN")
         self.project_path = project_path or os.getenv("ORBIT_PROJECT_PATH")
+        # The CALLS traversal (fetch_calls) is the heaviest query and scales with the
+        # size of the indexed repo, so the old 5s default started timing out as the graph
+        # grew. Default generously and let ORBIT_TIMEOUT override per-environment.
+        if timeout is None:
+            try:
+                timeout = float(os.getenv("ORBIT_TIMEOUT", "30"))
+            except ValueError:
+                timeout = 30.0
         self.timeout = timeout
 
         if use_fake is None:

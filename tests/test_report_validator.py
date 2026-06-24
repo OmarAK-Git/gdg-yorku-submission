@@ -428,7 +428,7 @@ def test_merged_constituent_perspective_mismatch_fails(sample_corpus):
     )
     
     errors = validate_report_invariants(report, [f1, f2], sample_corpus)
-    assert any("belong to the same perspective and source agent" in e for e in errors)
+    assert any("belong to the same perspective, source agent, and status" in e for e in errors)
 
 def test_merged_constituent_source_agent_mismatch_fails(sample_corpus):
     f1 = make_input_finding("f1", source_agent="correctness_agent", severity=Severity.MEDIUM)
@@ -456,7 +456,37 @@ def test_merged_constituent_source_agent_mismatch_fails(sample_corpus):
     )
     
     errors = validate_report_invariants(report, [f1, f2], sample_corpus)
-    assert any("belong to the same perspective and source agent" in e for e in errors)
+    assert any("belong to the same perspective, source agent, and status" in e for e in errors)
+
+def test_merged_constituent_status_mismatch_fails(sample_corpus):
+    # A contested finding must never be absorbed into an active merged finding: status is
+    # an isolation boundary so contested items always survive for a human ruling.
+    f1 = make_input_finding("f1", severity=Severity.HIGH, status="active")
+    f2 = make_input_finding("f2", severity=Severity.HIGH, status="contested")
+
+    rf_merged = make_report_finding("merged-1", severity=Severity.HIGH, status="active", merged_from=["f1", "f2"])
+
+    report = ReviewReport(
+        run_metadata={},
+        corpus_summary={},
+        perspective_statuses=[],
+        gate_status=GateStatus(status="complete", finding_ids=[]),
+        severity_counts={"high": 1},
+        high_critical_findings=[],
+        findings=[rf_merged],
+        contested_items=[],
+        secret_scan_summary=[],
+        accounting_ledger=AccountingLedger(
+            included=["merged-1"],
+            merged=[MergeLedgerEntry(output_id="merged-1", input_ids=["f1", "f2"])],
+            omitted=[],
+            contested=[]
+        ),
+        validator_warnings=[]
+    )
+
+    errors = validate_report_invariants(report, [f1, f2], sample_corpus)
+    assert any("belong to the same perspective, source agent, and status" in e for e in errors)
 
 def test_merged_routing_mismatch_fails(sample_corpus):
     f1 = make_input_finding("f1", severity=Severity.MEDIUM)

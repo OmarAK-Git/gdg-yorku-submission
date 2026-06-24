@@ -20,7 +20,7 @@ class Proposal(BaseModel):
     adversary: Optional[Literal["defender", "challenger"]] = Field(default=None, description="The proposer ('defender' or 'challenger')")
     text: str = Field(..., description="The proposed change or finding detail")
     severity: Severity = Field(..., description="The severity level of the proposal")
-    groundednessCitation: str = Field(..., description="File path, function, or line number in the corpus, or original spec")
+    groundednessCitation: str = Field(..., description="Where this is grounded, as a corpus path with a line anchor: 'path/to/file.py#START-END' (e.g. 'src/app.py#14-37'). The path must be a real corpus file and the lines must exist in it. Free-text forms like 'line 23' are tolerated, but the clean 'path#start-end' anchor is strongly preferred. Do not add prose after the line range.")
     reasoning: str = Field(..., description="The reasoning behind the proposal")
 
 class OpponentScore(BaseModel):
