@@ -68,8 +68,8 @@ async def call_claude_adversary(
             }
         
         # Record usage
-        # Claude Sonnet Pricing: Input: $3/1M, Output: $15/1M
-        cost = (estimated_input_tokens * 3.0 / 1_000_000) + (estimated_output_tokens * 15.0 / 1_000_000)
+        # Claude Opus 4.8 pricing: input $5/1M, output $25/1M
+        cost = (estimated_input_tokens * 5.0 / 1_000_000) + (estimated_output_tokens * 25.0 / 1_000_000)
         record_llm_usage(orch, "claude", total_estimated, cost)
         return response_model.model_validate(dummy)
 
@@ -77,7 +77,7 @@ async def call_claude_adversary(
     model_name = model or os.getenv("CRUCIBLE_CLAUDE_MODEL", "claude-opus-4-8")
     
     project = os.getenv("GOOGLE_CLOUD_PROJECT")
-    location = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+    location = os.getenv("GOOGLE_CLOUD_LOCATION", "global")
     api_key = os.getenv("ANTHROPIC_API_KEY")
 
     client = None
@@ -161,7 +161,7 @@ async def call_claude_adversary(
             output_tokens = response.usage.output_tokens
 
         actual_tokens = input_tokens + output_tokens
-        cost = (input_tokens * 3.0 / 1_000_000) + (output_tokens * 15.0 / 1_000_000)
+        cost = (input_tokens * 5.0 / 1_000_000) + (output_tokens * 25.0 / 1_000_000)
         record_llm_usage(orch, "claude", actual_tokens, cost)
 
         cleaned = clean_json_string(content)

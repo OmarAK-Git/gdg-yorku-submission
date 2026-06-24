@@ -20,11 +20,11 @@
 
 **Google tech, happy path.** Antigravity was used as the agentic development environment for building and iterating on the app. At runtime, the happy path uses Vertex AI for Gemini 3.5 Flash correctness, coordination, and defense calls; Claude Opus 4.8 served on Vertex for the challenger; one ADC credential for both model families; Google ADK for multi-agent session/orchestration; and GitLab Orbit graph data for blast-radius analysis.
 
-**Fallback path.** If an ADK Runner model call fails, the Gemini client can fall back to direct Vertex/Google GenAI. If ADC-backed Claude on Vertex is rate-limited or unavailable, the Claude adapter can fall back to a direct Anthropic API key. If ADK is unavailable or its session API changes, the orchestration seam degrades to the pure-Python `InProcessOrchestrator`. If the adversarial debate fails or returns no usable result, the deterministic AST baseline still provides the security perspective. If Orbit fails or is unconfigured, the blast-radius perspective records a disabled/unavailable status and the report still completes. If coordinator compilation, validation, budget, or model output fails, the deterministic terminal report returns every input finding without spending LLM tokens.
+**Fallback path.** Two ADK-related fallbacks live at *different layers* — one governs how a model call is *dispatched*, the other where run *state* is stored — so it's worth keeping them apart. (1) If a Gemini call routed through the ADK Runner errors, `GeminiClient` re-issues the same request directly to Vertex through the google-genai SDK — the *same* model, just a different code path. (2) If ADK itself is unavailable or its session API changes, the orchestration seam degrades to the pure-Python `InProcessOrchestrator` — that swaps where run state lives, not how models are called. The remaining fallbacks are perspective- or report-level: if ADC-backed Claude on Vertex is rate-limited (429) or unavailable, the Claude adapter retries on a direct Anthropic API key; if the adversarial debate fails or returns no usable result, the deterministic AST baseline still provides the security perspective; if Orbit fails or is unconfigured, the blast-radius perspective records a disabled/unavailable status and the report still completes; and if coordinator compilation, validation, budget, or model output fails, the deterministic terminal report returns every input finding without spending LLM tokens.
 
 **Status.** Sprint 5 complete. **380 tests passing.** Live Vertex + live GitLab Orbit graph integration verified end-to-end.
 
-**Future work** (see [§12](#-future-work)): the walls I actually hit and deferred — run-scoped budget/model control, structural (DAG-enforced) agent parallelism, convergence-based debate termination, a tamper-evident hash-chained conservation ledger, and actionable per-secret gate remediation.
+**Future work** (see [§12](#-future-work)): the walls I actually hit and deferred — run-scoped budget/model control, structural (DAG-enforced) agent parallelism, a tamper-evident hash-chained conservation ledger, and actionable per-secret gate remediation.
 
 ---
 
@@ -102,7 +102,7 @@ Secrets are handled **before** intelligence, never during it.
 
 This split is the key insight people get wrong: most tools either scan only what they show the LLM (missing the `.env` that holds the real key) or show the LLM everything (leaking it). Docket **scans the entire corpus, prompts only a subset.**
 
-**Deterministic detection + system-wide redaction.** `run_secret_scan` runs a battery of regexes (AWS keys, Google API keys, Slack/GitHub/Stripe tokens, DB connection strings, PEM private keys, generic `KEY=…`/`password=…` assignments) over every file. Each hit is registered in a per-run `RedactionContext`, which then rewrites **every** corpus file's `redacted_text` — so a key that appears in `.env` is scrubbed from `config.py`, the logs, and the report too. The fingerprint is a salted hash, so the same secret is consistently masked without ever storing the plaintext.
+**Deterministic detection + system-wide redaction.** `run_secret_scan` runs a battery of regexes (AWS keys, Google API keys, Slack/GitHub/Stripe tokens, DB connection strings, PEM private keys, generic `KEY=…`/`password=…` assignments) over every file. Each hit is registered in a per-run `RedactionContext`, which then rewrites **every** corpus file's `redacted_text` — so a key that appears in `.env` is scrubbed from `config.py`, the logs, and the report too. The fingerprint is a per-run salted SHA-256 hash (for long secrets, only the last 4 characters are kept, as a human-readable hint), so the same secret always collapses to the same placeholder and the full plaintext never lands in a prompt, log, or report. The raw value lives in the run's `RedactionContext` only as long as the redaction pass needs it to find-and-replace every occurrence — it is never persisted.
 
 **Exposure-aware severity.** A secret in a prompt-exposed file becomes a `high` (or `critical` for keys/passwords/PEM) review finding and is *promoted* into the review. The identical secret in a gitignored file is kept at `info` (advisory) — because it's a hygiene note, not a live exposure. Severity tracks *blast radius*, not pattern match.
 
@@ -317,9 +317,9 @@ python scripts/check_commit_window.py    # asserts every commit date ≥ 2026-06
 An honest list of walls I hit during the build and deferred — not a generic wishlist.
 
 - **Run-scoped resource & budget control.** Model selection per agent and the
-debate round budget are fixed at build time. The security debate hard-caps at
-5 rounds regardless of how contested the diff actually is — in the sample
-report it stopped on "hard cap reached," not on resolution. Next: a per-run
+debate round budget are fixed at build time. The debate's round cap is a
+hardcoded backstop — in the driftstore.zip demo the debate converged on its
+own in 3 rounds, well under it — not something a run can tune. Next: a per-run
 manifest that sets model choice per tier (escalate the security debate to a
 pricier model on high-stakes diffs, keep correctness cheap), a token/cost
 ceiling the orchestrator respects, and the round cap as a knob instead of a
@@ -335,13 +335,6 @@ Next: model the agents as an explicit dependency DAG (gate precedes everything;
 correctness, blast-radius, and security fan out independently; the conservation
 ledger joins on all three) with a real join barrier, so concurrency is
 structural rather than emergent.
-
-- **Convergence-based debate termination.** The challenger/defender debate stops
-on a hard 5-round cap. In the sample run it hit that cap with the score still
-diverging (challenger 17 · defender 12.6) — cut off, not resolved. Next:
-terminate when a round yields no new findings and no score delta (a round that
-doesn't move the verdict is a wasted round), keeping the hard cap only as a
-backstop.
 
 - **Tamper-evident conservation ledger.** The ledger enforces
 `Inputs == Included ∪ Merged ∪ Omitted ∪ Contested` at generation time, which

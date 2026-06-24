@@ -86,7 +86,7 @@ async def call_gemini_adversary(
     from google.genai import types
 
     project = os.getenv("GOOGLE_CLOUD_PROJECT")
-    location = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+    location = os.getenv("GOOGLE_CLOUD_LOCATION", "global")
     api_key = os.getenv("GEMINI_API_KEY")
 
     if project:
