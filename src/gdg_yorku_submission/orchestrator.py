@@ -21,6 +21,29 @@ from gdg_yorku_submission.severity import is_at_or_above_floor
 class Orchestrator(abc.ABC):
     def __init__(self) -> None:
         self.run_id = None
+        # Optional callback for live, redaction-safe progress events (e.g. debate
+        # rounds surfaced over SSE). None = no streaming consumer attached.
+        self._event_sink = None
+
+    def set_event_sink(self, sink) -> None:
+        """Register (or clear, with None) a sink for live progress events."""
+        self._event_sink = sink
+
+    async def emit_progress(self, payload: Dict[str, Any]) -> None:
+        """
+        Forward a redaction-safe progress payload to the registered sink, if any.
+        Best-effort and never raises — progress events must never break a run.
+        """
+        sink = getattr(self, "_event_sink", None)
+        if sink is None:
+            return
+        try:
+            import inspect
+            res = sink(payload)
+            if inspect.iscoroutine(res):
+                await res
+        except Exception:
+            pass
 
     @abc.abstractmethod
     def _get_state(self) -> Dict[str, Any]:

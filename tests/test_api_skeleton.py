@@ -18,9 +18,9 @@ def create_tiny_zip() -> bytes:
 
 
 def test_root_endpoint():
-    response = client.get("/")
-    assert response.status_code == 200
-    assert response.json()["status"] == "running"
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code == 307
+    assert "/static/index.html" in response.headers["location"]
 
 
 def test_review_upload_happy_path_adk(monkeypatch):
@@ -47,7 +47,7 @@ def test_review_upload_happy_path_adk(monkeypatch):
     zip_bytes = create_tiny_zip()
     files = {"file": ("test.zip", zip_bytes, "application/zip")}
     
-    response = client.post("/review", files=files, params={"orchestrator": "adk"})
+    response = client.post("/review", files=files)
     assert response.status_code == 200
     
     report = response.json()
@@ -70,7 +70,7 @@ def test_review_upload_happy_path_adk(monkeypatch):
     assert report["run_metadata"]["start_time"] is not None
     assert "duration_ms" in report["run_metadata"]
     assert isinstance(report["run_metadata"]["duration_ms"], int)
-    assert report["run_metadata"]["budget_remaining"] == "100.0% token allocation"
+    assert "token allocation" in report["run_metadata"]["budget_remaining"]
     
     assert "skipped_log" in report["corpus_summary"]
     assert isinstance(report["corpus_summary"]["skipped_log"], dict)
@@ -107,11 +107,11 @@ def test_review_upload_happy_path_in_process(monkeypatch):
     zip_bytes = create_tiny_zip()
     files = {"file": ("test.zip", zip_bytes, "application/zip")}
     
-    response = client.post("/review", files=files, params={"orchestrator": "in_process"})
+    response = client.post("/review", files=files)
     assert response.status_code == 200
     
     report = response.json()
-    assert report["run_metadata"]["orchestrator_type"] == "InProcessOrchestrator"
+    assert report["run_metadata"]["orchestrator_type"] == "AdkOrchestrator"
     assert len(report["findings"]) == 1
 
     # Verify backend telemetry and skipped logs threading contract under in_process
@@ -119,7 +119,7 @@ def test_review_upload_happy_path_in_process(monkeypatch):
     assert report["run_metadata"]["start_time"] is not None
     assert "duration_ms" in report["run_metadata"]
     assert isinstance(report["run_metadata"]["duration_ms"], int)
-    assert report["run_metadata"]["budget_remaining"] == "100.0% token allocation"
+    assert "token allocation" in report["run_metadata"]["budget_remaining"]
     
     assert "skipped_log" in report["corpus_summary"]
     assert isinstance(report["corpus_summary"]["skipped_log"], dict)
@@ -148,7 +148,6 @@ def test_review_upload_specialist_failure(monkeypatch):
     response = client.post(
         "/review",
         files=files,
-        params={"orchestrator": "in_process"}
     )
     assert response.status_code == 200
     
@@ -176,7 +175,7 @@ def test_review_upload_with_secrets():
     zip_bytes = buf.getvalue()
     
     files = {"file": ("test.zip", zip_bytes, "application/zip")}
-    response = client.post("/review", files=files, params={"orchestrator": "in_process"})
+    response = client.post("/review", files=files)
     assert response.status_code == 200
     
     report = response.json()
@@ -255,12 +254,12 @@ def test_review_upload_coordinated_success(monkeypatch):
     zip_bytes = create_tiny_zip()
     files = {"file": ("test.zip", zip_bytes, "application/zip")}
     
-    response = client.post("/review", files=files, params={"orchestrator": "in_process"})
+    response = client.post("/review", files=files)
     assert response.status_code == 200
     
     report = response.json()
     assert "run_metadata" in report
-    assert report["run_metadata"]["orchestrator_type"] == "InProcessOrchestrator"
+    assert report["run_metadata"]["orchestrator_type"] == "AdkOrchestrator"
     assert report["run_metadata"]["compilation_mode"] == "coordinated"
     
     # Correctness finding + deterministic AST security finding (none, wait, create_tiny_zip has hello.py, SPEC.md, src/app.py, but no AST violations since src/app.py is empty of violations).

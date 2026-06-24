@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20260624-debate">
 </head>
 <body>
 
@@ -22,23 +22,22 @@
         <span class="logo-subtext">Automated Multi-Agent Integrity Suite</span>
       </div>
     </div>
-    
+
     <div class="header-actions">
-      <div class="select-wrapper">
-        <label for="orchestrator-select">Orchestrator Mode:</label>
-        <select id="orchestrator-select" class="custom-select">
-          <option value="adk">ADK Seam (In-Process Default)</option>
-          <option value="in_process">In-Process Orchestrator</option>
-        </select>
-      </div>
-      <button id="demo-load-btn" class="secondary-btn">Load Mock Demo Report</button>
+      <button id="home-btn" class="home-btn hidden" title="Start a new scan">
+        <span class="home-btn-icon">Home</span> New Scan
+      </button>
+      <button id="download-report-btn" class="download-btn hidden" title="Download portable report">
+        <span class="download-btn-icon">MD</span> Download Report
+      </button>
+      <button id="demo-load-btn" class="secondary-btn">Load Mock Demo</button>
     </div>
   </header>
 
   <main class="app-container">
-    
+
     <!-- Upload Dropzone Section -->
-    <section class="upload-section">
+    <section id="upload-section" class="upload-section">
       <div id="dropzone" class="upload-dropzone">
         <input type="file" id="file-input" accept=".zip" class="hidden-file-input">
         <div class="dropzone-content">
@@ -58,23 +57,46 @@
 
     <!-- Dashboard Content Area (initially hidden until report loaded) -->
     <section id="dashboard-content" class="dashboard-grid hidden">
-      
-      <!-- Side Dashboard Column: Statistics & System Statuses -->
+
+      <!-- Side Dashboard Column: Run Diagnostics Group -->
       <aside class="sidebar-panel">
-        
-        <!-- Run Metadata -->
-        <div class="dashboard-card" id="card-run-meta">
+
+        <!-- Run Diagnostics Section Header -->
+        <div class="sidebar-section-header">
+          <span class="section-icon">*</span>
           <h2>Run Diagnostics</h2>
-          <div class="metadata-grid" id="meta-container">
-            <div class="meta-item"><span class="meta-label">Time:</span> <span id="meta-time" class="meta-value">-</span></div>
-            <div class="meta-item"><span class="meta-label">Type:</span> <span id="meta-type" class="meta-value">-</span></div>
-            <div class="meta-item"><span class="meta-label">Budget Remaining:</span> <span id="meta-budget" class="meta-value">-</span></div>
+        </div>
+
+        <!-- Agent Perspectives -->
+        <div class="dashboard-card" id="card-statuses">
+          <h3>Agent Perspectives</h3>
+
+          <div class="status-indicator-group">
+            <div class="status-row" id="status-row-gate">
+              <span class="status-name">Pre-Flight Secret Scan:</span>
+              <span id="badge-gate-status" class="status-badge status-pending">Pending</span>
+            </div>
+
+            <div class="status-row" id="status-row-correctness">
+              <span class="status-name">Correctness Agent:</span>
+              <span id="badge-correctness-status" class="status-badge status-pending">Pending</span>
+            </div>
+
+            <div class="status-row" id="status-row-security">
+              <span class="status-name">Security Agent:</span>
+              <span id="badge-security-status" class="status-badge status-pending">Pending</span>
+            </div>
+
+            <div class="status-row" id="status-row-blast-radius">
+              <span class="status-name">Blast-Radius Agent (Orbit):</span>
+              <span id="badge-blast-radius-status" class="status-badge status-pending">Pending</span>
+            </div>
           </div>
         </div>
 
         <!-- Corpus Summary Statistics -->
         <div class="dashboard-card" id="card-corpus-summary">
-          <h2>Corpus Summary</h2>
+          <h3>Corpus Summary</h3>
           <div class="summary-stats-grid">
             <div class="stat-box">
               <span class="stat-number" id="stat-file-count">0</span>
@@ -90,41 +112,23 @@
             </div>
           </div>
           <div id="skipped-files-list" class="skipped-files-list hidden">
-            <h3>Skipped Log:</h3>
+            <h4>Skipped Log:</h4>
             <ul id="skipped-list-ul"></ul>
           </div>
         </div>
 
-        <!-- Perspective and Gate Statuses -->
-        <div class="dashboard-card" id="card-statuses">
-          <h2>Agent Perspectives</h2>
-          
-          <div class="status-indicator-group">
-            <div class="status-row" id="status-row-gate">
-              <span class="status-name">Pre-Flight Secret Scan:</span>
-              <span id="badge-gate-status" class="status-badge status-pending">Pending</span>
-            </div>
-            
-            <div class="status-row" id="status-row-correctness">
-              <span class="status-name">Correctness Agent:</span>
-              <span id="badge-correctness-status" class="status-badge status-pending">Pending</span>
-            </div>
-            
-            <div class="status-row" id="status-row-security">
-              <span class="status-name">Security/Assurance Node:</span>
-              <span id="badge-security-status" class="status-badge status-pending">Pending</span>
-            </div>
-            
-            <div class="status-row" id="status-row-blast-radius">
-              <span class="status-name">Blast-Radius Agent (Orbit):</span>
-              <span id="badge-blast-radius-status" class="status-badge status-pending">Pending</span>
-            </div>
+        <!-- Run Meta (slim) -->
+        <div class="dashboard-card" id="card-run-meta">
+          <h3>Scan Info</h3>
+          <div class="metadata-grid">
+            <div class="meta-item"><span class="meta-label">Scan Time:</span> <span id="meta-time" class="meta-value">-</span></div>
+            <div class="meta-item"><span class="meta-label">Coordinator:</span> <span id="meta-compilation" class="meta-value">-</span></div>
           </div>
         </div>
 
         <!-- Severity Counter Summary -->
         <div class="dashboard-card" id="card-severities">
-          <h2>Severity Breakdown</h2>
+          <h3>Severity Breakdown</h3>
           <div class="severity-counts-container">
             <div class="severity-stat critical" id="sev-stat-critical">
               <span class="severity-dot critical-dot"></span>
@@ -158,7 +162,7 @@
 
       <!-- Main Dashboard Panel: Tabbed Details & Interactive Viewers -->
       <section class="main-panel">
-        
+
         <!-- Tab Bar Control -->
         <nav class="dashboard-tabs" role="tablist">
           <button id="tab-all" class="tab-btn active" role="tab" aria-selected="true" aria-controls="panel-findings">
@@ -182,16 +186,30 @@
         <div id="panel-findings" class="tab-panel-content">
           <div class="panel-header">
             <h2>Active Code Review Findings</h2>
-            <div class="panel-filters">
-              <label for="filter-perspective">Perspective:</label>
-              <select id="filter-perspective" class="mini-select">
-                <option value="all">All Perspectives</option>
-                <option value="correctness">Correctness</option>
-                <option value="security">Security</option>
-              </select>
-            </div>
+            <button id="view-debate-btn" class="debate-btn hidden" title="Replay the adversarial security debate">
+              <span class="debate-btn-icon">&#9876;</span> View Security Debate
+            </button>
           </div>
-          
+
+          <!-- Perspective Filter Toggle Buttons -->
+          <div class="perspective-filter-bar" id="perspective-filter-bar">
+            <button class="perspective-toggle active" data-perspective="all" id="filter-all" title="Show all perspectives">
+              <span class="toggle-icon">All</span>
+            </button>
+            <button class="perspective-toggle" data-perspective="preflight" id="filter-preflight" title="Pre-flight secret gate findings">
+              <span class="toggle-icon">Secrets</span>
+            </button>
+            <button class="perspective-toggle" data-perspective="correctness" id="filter-correctness" title="Correctness agent findings">
+              <span class="toggle-icon">Correctness</span>
+            </button>
+            <button class="perspective-toggle" data-perspective="security" id="filter-security" title="Security / debate findings">
+              <span class="toggle-icon">Security</span>
+            </button>
+            <button class="perspective-toggle" data-perspective="blast_radius" id="filter-orbit" title="Orbit blast-radius findings">
+              <span class="toggle-icon">Blast Radius</span>
+            </button>
+          </div>
+
           <div id="validator-warning-banner" class="warning-banner hidden">
             <span class="warning-icon"></span>
             <div class="warning-text">
@@ -248,7 +266,7 @@
             <p class="panel-desc" style="margin-bottom: 0; max-width: 80%;">Matches incoming specialist findings to final outputs. Every provisional ID must be accounted for by the compiler. Integrity check satisfies R4: <code>Inputs &equiv; Included &cup; Merged &cup; Omitted &cup; Contested</code> (enforced by validator).</p>
             <div id="ledger-check-badge" class="status-badge status-complete">Verified PASS</div>
           </div>
-          
+
           <div class="ledger-summary-grid">
             <div class="ledger-card included">
               <h3>Included Verbatim</h3>
@@ -286,6 +304,21 @@
 
   </main>
 
+  <!-- Adversarial Security Debate Modal -->
+  <div id="debate-modal" class="debate-modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="debate-modal-title">
+    <div class="debate-modal">
+      <div class="debate-modal-header">
+        <div>
+          <h2 id="debate-modal-title">Adversarial Security Debate</h2>
+          <p class="debate-modal-sub">Claude (challenger / security hawk) vs Gemini (defender / ship-it advocate). Every finding below was kept, dropped, or contested by this exchange.</p>
+        </div>
+        <button id="debate-modal-close" class="debate-modal-close" title="Close" aria-label="Close debate viewer">&times;</button>
+      </div>
+      <div id="debate-modal-meta" class="debate-modal-meta"></div>
+      <div id="debate-modal-body" class="debate-modal-body"></div>
+    </div>
+  </div>
+
   <footer class="app-footer">
     <div class="footer-content">
       <span>GDG YorkU Case Competition Submission</span>
@@ -294,6 +327,6 @@
     </div>
   </footer>
 
-  <script src="app.js" type="module"></script>
+  <script src="app.js?v=20260624-debate" type="module"></script>
 </body>
 </html>

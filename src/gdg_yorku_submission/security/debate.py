@@ -73,6 +73,67 @@ Your output must be a valid JSON object matching this schema:
 Output ONLY the JSON object — no markdown fences.
 """
 
+def session_to_transcript(session: DebateSession, redaction_ctx: Optional[Any] = None) -> Dict[str, Any]:
+    """
+    Flatten a completed DebateSession into a compact, redaction-safe dict suitable for
+    embedding in the final report (run_metadata.debate_transcript) and for client display.
+
+    Only structured, already-redacted prose is surfaced: per-round challenger/defender
+    messages, the running scoreboard, and the final per-finding resolution + the defender's
+    closing reasoning. Raw corpus content never appears here — round messages are written
+    pre-redacted in run_debate_loop, and claims/reasons are swept again here defensively.
+    """
+    def _redact(text: Any) -> Any:
+        if redaction_ctx is not None and isinstance(text, str):
+            return redaction_ctx.redact(text)
+        return text
+
+    rounds_out: List[Dict[str, Any]] = []
+    cumulative = {"challenger": 0.0, "defender": 0.0}
+    scoreboard_after: List[Dict[str, Any]] = []
+    for r in session.rounds:
+        rounds_out.append({
+            "round": r.round_number,
+            "messages": [
+                {"role": m.role, "message": _redact(m.message)} for m in r.messages
+            ],
+        })
+        cumulative["challenger"] += r.scores_this_round.get("challenger", 0.0)
+        cumulative["defender"] += r.scores_this_round.get("defender", 0.0)
+        scoreboard_after.append({
+            "round": r.round_number,
+            "challenger": round(cumulative["challenger"], 1),
+            "defender": round(cumulative["defender"], 1),
+        })
+
+    resolutions: List[Dict[str, Any]] = []
+    for c in session.ledger.candidates:
+        sev = c.finding.severity
+        resolutions.append({
+            "claim": _redact(c.finding.claim),
+            "severity": sev.value if hasattr(sev, "value") else str(sev),
+            "resolution": c.resolution,
+            "closed_reason": _redact(c.closed_reason) if c.closed_reason else None,
+        })
+
+    seed = 0
+    if session.rounds and session.rounds[0].challenger_turn:
+        seed = len(session.rounds[0].challenger_turn.new_proposals)
+
+    return {
+        "engaged": True,
+        "seed_findings": seed,
+        "stop_reason": session.metadata.get("stop_reason"),
+        "rounds": rounds_out,
+        "scoreboard": scoreboard_after,
+        "final_score": {
+            "challenger": round(cumulative["challenger"], 1),
+            "defender": round(cumulative["defender"], 1),
+        },
+        "resolutions": resolutions,
+    }
+
+
 def get_system_prompt(role: str, persona: str, round_num: int) -> str:
     return f"Role: {role}\n\n{persona}\n\n{ANTI_SYCOPHANCY}\n\nROUND {round_num}\n{SEQUENTIAL_INSTRUCTIONS}"
 
@@ -120,6 +181,18 @@ async def run_debate_loop(
         if redaction_ctx and isinstance(text, str):
             return redaction_ctx.redact(text)
         return text
+
+    # Live progress emitter for the SSE activity console. Emits only safe,
+    # structured metadata (round numbers, persona, counts, scores) — never raw
+    # model prose — so it can never leak corpus content. Best-effort; never raises.
+    cumulative_scores = {"challenger": 0.0, "defender": 0.0}
+
+    async def emit_debate(payload):
+        if hasattr(orch, "emit_progress"):
+            try:
+                await orch.emit_progress(payload)
+            except Exception:
+                pass
 
     # Map deterministic AST findings to challenger's Round 1 proposals
     challenger_r1_proposals = []
@@ -253,6 +326,13 @@ async def run_debate_loop(
 
         session.rounds.append(round_1_obj)
 
+        await emit_debate({"phase": "start", "seed_findings": len(challenger_r1_proposals)})
+        await emit_debate({
+            "phase": "round", "round": 1, "actor": "defender",
+            "proposed": len(defender_turn_resp.new_proposals),
+            "scored": len(defender_turn_resp.opponent_scores),
+        })
+
     except BudgetExhaustedError as e:
         logger.warning(f"Debate loop hit budget limit at round 1: {e}")
         session.metadata["stop_reason"] = "budget_exhausted"
@@ -347,6 +427,12 @@ async def run_debate_loop(
                     )
                 round_obj.defender_turn = defender_turn_resp
 
+                await emit_debate({
+                    "phase": "round", "round": r, "actor": "defender",
+                    "proposed": len(defender_turn_resp.new_proposals),
+                    "scored": len(defender_turn_resp.opponent_scores),
+                })
+
                 # 2. Challenger Turn (Claude)
                 opp_proposals = defender_turn_resp.new_proposals
 
@@ -408,11 +494,25 @@ async def run_debate_loop(
                     )
                 round_obj.challenger_turn = challenger_turn_resp
 
+                await emit_debate({
+                    "phase": "round", "round": r, "actor": "challenger",
+                    "proposed": len(challenger_turn_resp.new_proposals),
+                    "scored": len(challenger_turn_resp.opponent_scores),
+                })
+
                 # 3. Score this Round
                 scores_gained = score_round(round_obj, proposals_by_id)
                 round_obj.scores_this_round = scores_gained
 
                 session.rounds.append(round_obj)
+
+                cumulative_scores["challenger"] += scores_gained.get("challenger", 0.0)
+                cumulative_scores["defender"] += scores_gained.get("defender", 0.0)
+                await emit_debate({
+                    "phase": "scoreboard", "round": r,
+                    "challenger": round(cumulative_scores["challenger"], 1),
+                    "defender": round(cumulative_scores["defender"], 1),
+                })
 
                 # Check termination
                 terminated, reason = should_terminate(session.rounds)

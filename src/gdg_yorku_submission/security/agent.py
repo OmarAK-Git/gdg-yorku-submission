@@ -23,18 +23,36 @@ def make_security_specialist(orch: Any) -> Callable[[], Any]:
             return baseline_findings, status, reason
 
         # Run debate loop inside anyio/asyncio
-        from gdg_yorku_submission.security.debate import run_debate_loop
-        
+        from gdg_yorku_submission.security.debate import run_debate_loop, session_to_transcript
+
         try:
             session = await run_debate_loop(orch, baseline_findings)
-            
+
+            # Persist the full adversarial transcript so the report (and UI/download) can
+            # replay the back-and-forth that decided each finding. Redaction-safe.
+            try:
+                redaction_ctx = orch.get_redaction_context() if hasattr(orch, "get_redaction_context") else None
+                orch.set_run_metadata("debate_transcript", session_to_transcript(session, redaction_ctx))
+            except Exception as transcript_err:
+                logger.warning(f"Failed to persist debate transcript (non-fatal): {transcript_err}")
+
             # Extract findings from the ledger
             survived = session.ledger.get_survived()
             contested, high_only_notice = session.ledger.get_contested_with_kcap()
             
             # Group all final findings
             final_findings = survived + contested
-            
+
+            try:
+                await orch.emit_progress({
+                    "phase": "complete",
+                    "survived": len(survived),
+                    "contested": len(contested),
+                    "stop_reason": session.metadata.get("stop_reason"),
+                })
+            except Exception:
+                pass
+
             if high_only_notice:
                 notice = "Contested K-cap truncation limit (3) exceeded; below-floor findings omitted."
                 reason = f"{reason}; {notice}" if reason else notice

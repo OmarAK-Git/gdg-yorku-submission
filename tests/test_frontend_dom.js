@@ -25,6 +25,7 @@ class MockElement {
       contains: (c) => this.classList.classes.has(c)
     };
     this.attributes = {};
+    this.dataset = {};
     this.listeners = {};
     this._textContent = '';
     this._innerHTML = '';
@@ -141,8 +142,25 @@ dashboardContent.classList.add('hidden');
 const selectElement = documentMock.getElementById('orchestrator-select');
 selectElement.value = 'adk';
 
-const filterPerspective = documentMock.getElementById('filter-perspective');
-filterPerspective.value = 'all';
+// Perspective filtering switched from a single <select> to a set of multi-select
+// toggle buttons (.perspective-toggle with data-perspective). Wire up the mock buttons
+// that initPerspectiveFilters() binds at DOMContentLoaded.
+const perspectiveToggles = [
+  documentMock.getElementById('filter-all'),
+  documentMock.getElementById('filter-preflight'),
+  documentMock.getElementById('filter-correctness'),
+  documentMock.getElementById('filter-security'),
+  documentMock.getElementById('filter-orbit'),
+];
+perspectiveToggles[0].dataset.perspective = 'all';
+perspectiveToggles[0].classList.add('active');
+perspectiveToggles[1].dataset.perspective = 'preflight';
+perspectiveToggles[2].dataset.perspective = 'correctness';
+perspectiveToggles[3].dataset.perspective = 'security';
+perspectiveToggles[4].dataset.perspective = 'blast_radius';
+elementsByQuery['.perspective-toggle'] = perspectiveToggles;
+const filterCorrectness = perspectiveToggles[2];
+const filterAll = perspectiveToggles[0];
 
 // Mock the tabs
 const tabs = [
@@ -213,15 +231,13 @@ const findingsList = documentMock.getElementById('findings-list');
 // Initial load shows active findings (5 total)
 assert.strictEqual(findingsList.children.length, 5);
 
-// Flip filter to correctness
-filterPerspective.value = 'correctness';
-filterPerspective.dispatchEvent('change');
+// Toggle the "correctness" perspective filter on (multi-select buttons)
+filterCorrectness.dispatchEvent('click');
 // Correctness count should be 2
 assert.strictEqual(findingsList.children.length, 2);
 
-// Flip filter back to all
-filterPerspective.value = 'all';
-filterPerspective.dispatchEvent('change');
+// Click "All" to reset the perspective filter
+filterAll.dispatchEvent('click');
 assert.strictEqual(findingsList.children.length, 5);
 
 // Flip tab to High/Critical

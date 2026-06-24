@@ -9,6 +9,11 @@ from gdg_yorku_submission.budget import record_llm_usage
 
 logger = logging.getLogger(__name__)
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 class GeminiClient:
     """
     A wrapper client for Gemini calls.
@@ -133,7 +138,7 @@ class GeminiClient:
                     from google.genai import Client
 
                     model_name = os.getenv("GEMINI_MODEL", "gemini-3.1-pro-preview")
-                    
+
                     class VertexGemini(Gemini):
                         @cached_property
                         def api_client(self) -> Client:
@@ -154,22 +159,22 @@ class GeminiClient:
                                 return Client()
 
                     adk_model = VertexGemini(model=model_name)
-                    
+
                     agent = LlmAgent(
                         name="gemini_client_adk_agent",
                         model=adk_model,
                         instruction="You are a helpful assistant. Respond with content adhering to the output schema if specified.",
                         output_schema=response_schema
                     )
-                    
+
                     runner = Runner(
                         app_name="gdg-yorku-submission",
                         agent=agent,
                         session_service=orch._session_service
                     )
-                    
+
                     new_message = types.Content(parts=[types.Part.from_text(text=prompt)])
-                    
+
                     async def _drive_adk_runner():
                         """Drive the ADK runner and release the async genai client
                         before the event loop is torn down.
@@ -231,7 +236,7 @@ class GeminiClient:
                             cached_client.close()
                         except Exception:
                             pass
-                    
+
                     response_text = ""
                     for event in events:
                         if event.output is not None:
@@ -244,22 +249,22 @@ class GeminiClient:
                             else:
                                 response_text = str(event.output)
                             break
-                    
+
                     if not response_text:
                         for event in events:
                             if event.content and event.content.parts:
                                 for part in event.content.parts:
                                     if part.text:
                                         response_text += part.text
-                                        
+
                     # Record the LLM usage
                     total_tokens = estimated_input_tokens + estimated_output_tokens
                     cost = (estimated_input_tokens * 0.075 / 1_000_000) + (estimated_output_tokens * 0.30 / 1_000_000)
                     record_llm_usage(orch, "gemini", total_tokens, cost)
-                    
+
                     # Store an execution confirmation in state for verification tests
                     orch.set_run_metadata("adk_runner_executed", True)
-                    
+
                     return response_text
                 except Exception as adk_err:
                     logger.warning(
@@ -301,14 +306,14 @@ class GeminiClient:
                     )
 
                 model_name = os.getenv("GEMINI_MODEL", "gemini-3.1-pro-preview")
-                
+
                 config_args = {}
                 if response_schema:
                     config_args["response_mime_type"] = "application/json"
                     config_args["response_schema"] = response_schema
-                
+
                 config = types.GenerateContentConfig(**config_args) if config_args else None
-                
+
                 response = client.models.generate_content(
                     model=model_name,
                     contents=prompt,
@@ -321,11 +326,11 @@ class GeminiClient:
                 if hasattr(response, "usage_metadata") and response.usage_metadata:
                     input_tokens = response.usage_metadata.prompt_token_count
                     output_tokens = response.usage_metadata.candidates_token_count
-                    
+
                 total_tokens = input_tokens + output_tokens
                 cost = (input_tokens * 0.075 / 1_000_000) + (output_tokens * 0.30 / 1_000_000)
                 record_llm_usage(orch, "gemini", total_tokens, cost)
-                
+
                 return response.text
             except Exception as e:
                 logger.error(f"google.genai call failed. Error: {e}")

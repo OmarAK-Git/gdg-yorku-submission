@@ -11,8 +11,8 @@ def test_static_index_route():
     response = client.get("/static/index.html")
     assert response.status_code == 200
     assert "GDG-YorkU Code Review Dashboard" in response.text
-    assert 'href="styles.css"' in response.text
-    assert 'src="app.js"' in response.text
+    assert 'href="styles.css' in response.text
+    assert 'src="app.js' in response.text
 
 
 def test_static_css_route():
@@ -49,4 +49,3 @@ def test_frontend_dom_behavior():
     import subprocess
     result = subprocess.run(["node", "tests/test_frontend_dom.js"], capture_output=True, text=True)
     assert result.returncode == 0, f"JS DOM tests failed with stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-

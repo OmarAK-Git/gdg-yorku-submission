@@ -13,13 +13,17 @@ from gdg_yorku_submission.blast_radius.orbit_graph import (
 
 logger = logging.getLogger(__name__)
 
-
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 def _detect_query_kind(dsl_payload: Dict[str, Any]) -> str:
     query = dsl_payload.get("query", {})
     node = query.get("node")
     if isinstance(node, dict):
         return node.get("entity", "").lower()
-    
+
     # Check relationships
     relationships = query.get("relationships", [])
     if isinstance(relationships, list) and relationships:
@@ -30,7 +34,7 @@ def _detect_query_kind(dsl_payload: Dict[str, Any]) -> str:
             return "imported-symbols"
         if "DEFINES" in rel_types:
             return "definitions"
-            
+
     # Check nodes
     nodes = query.get("nodes", [])
     if isinstance(nodes, list) and nodes:
@@ -49,7 +53,7 @@ def _detect_query_kind(dsl_payload: Dict[str, Any]) -> str:
                 return "merge-requests"
             if entity:
                 return entity.lower()
-                
+
     return "unknown"
 
 
@@ -70,7 +74,7 @@ class OrbitClient:
         self.api_token = api_token or os.getenv("ORBIT_API_TOKEN")
         self.project_path = project_path or os.getenv("ORBIT_PROJECT_PATH")
         self.timeout = timeout
-        
+
         if use_fake is None:
             self.use_fake = os.getenv("USE_FAKE_ORBIT", "false").lower() == "true"
         else:

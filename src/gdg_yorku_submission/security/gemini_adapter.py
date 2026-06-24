@@ -7,6 +7,11 @@ from gdg_yorku_submission.budget import BudgetLease, acquire_budget_lease, recor
 
 logger = logging.getLogger(__name__)
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 def clean_json_string(text: str) -> str:
     """Strips markdown code block backticks if present."""
     text = text.strip()
@@ -66,7 +71,7 @@ async def call_gemini_adversary(
                 "disagreements": [],
                 "questions_for_human": []
             }
-        
+
         # Record usage
         # Input: $0.075/1M, Output: $0.30/1M
         cost = (estimated_input_tokens * 0.075 / 1_000_000) + (estimated_output_tokens * 0.30 / 1_000_000)
@@ -83,7 +88,7 @@ async def call_gemini_adversary(
     project = os.getenv("GOOGLE_CLOUD_PROJECT")
     location = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
     api_key = os.getenv("GEMINI_API_KEY")
-    
+
     if project:
         client = genai.Client(
             vertexai=True,
@@ -134,7 +139,7 @@ async def call_gemini_adversary(
     if response and hasattr(response, "usage_metadata") and response.usage_metadata:
         input_tokens = response.usage_metadata.prompt_token_count
         output_tokens = response.usage_metadata.candidates_token_count
-        
+
     actual_tokens = input_tokens + output_tokens
     cost = (input_tokens * 0.075 / 1_000_000) + (output_tokens * 0.30 / 1_000_000)
     record_llm_usage(orch, "gemini", actual_tokens, cost)

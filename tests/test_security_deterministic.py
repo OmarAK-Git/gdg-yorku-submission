@@ -685,11 +685,13 @@ def fetch():
     zip_bytes = buf.getvalue()
 
     files = {"file": ("test.zip", zip_bytes, "application/zip")}
-    response = client.post("/review", files=files, params={"orchestrator": "in_process"})
+    response = client.post("/review", files=files)
     assert response.status_code == 200
 
     report = response.json()
-    assert report["run_metadata"]["orchestrator_type"] == "InProcessOrchestrator"
+    # /review always drives the ADK orchestrator (which falls back to in-process
+    # behavior internally if ADK is unavailable, but keeps its class name).
+    assert report["run_metadata"]["orchestrator_type"] == "AdkOrchestrator"
 
     findings = report["findings"]
     sec_findings = [f for f in findings if f["perspective"] == "security"]

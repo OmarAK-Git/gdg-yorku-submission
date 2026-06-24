@@ -81,16 +81,25 @@ async def call_claude_adversary(
     api_key = os.getenv("ANTHROPIC_API_KEY")
 
     client = None
-    
-    # Try Google Cloud Vertex (ADC) first if GOOGLE_CLOUD_PROJECT is set
-    if project:
+
+    # Toggle: force the direct Anthropic API (api.anthropic.com) and bypass Vertex
+    # entirely. Use this when the Vertex/GCP plumbing is failing (e.g. 429s) so the
+    # demo can run to completion on an ANTHROPIC_API_KEY. Set CLAUDE_USE_ANTHROPIC_API=true.
+    force_anthropic_api = os.getenv("CLAUDE_USE_ANTHROPIC_API", "false").lower() == "true"
+
+    using_vertex = False
+
+    # Try Google Cloud Vertex (ADC) first if GOOGLE_CLOUD_PROJECT is set, unless the
+    # toggle forces the direct Anthropic API path.
+    if project and not force_anthropic_api:
         try:
             from anthropic import AsyncAnthropicVertex
             client = AsyncAnthropicVertex(project_id=project, region=location)
+            using_vertex = True
             logger.info("Using AsyncAnthropicVertex client for adversary call.")
         except Exception as e:
             logger.warning(f"Failed to initialize AsyncAnthropicVertex: {e}. Trying fallback AsyncAnthropic...")
-            
+
     if not client:
         if api_key:
             from anthropic import AsyncAnthropic
@@ -115,7 +124,34 @@ async def call_claude_adversary(
     }
 
     try:
-        response = await client.messages.create(**create_kwargs)
+        try:
+            response = await client.messages.create(**create_kwargs)
+        except Exception as e:
+            # Runtime fallback: if the Vertex endpoint is rate-limited (429), retry
+            # the call once on the direct Anthropic API so a mid-debate quota error
+            # doesn't discard the whole security perspective. Requires ANTHROPIC_API_KEY.
+            is_rate_limit = getattr(e, "status_code", None) == 429 or "429" in str(e)
+            if using_vertex and is_rate_limit and api_key:
+                logger.warning(
+                    "Vertex returned 429 (quota exhausted). Falling back to the direct "
+                    "Anthropic API for this call."
+                )
+                old_client = client
+                from anthropic import AsyncAnthropic
+                client = AsyncAnthropic(api_key=api_key)
+                using_vertex = False
+                # Close the rate-limited Vertex client's transport.
+                old_closer = getattr(old_client, "close", None)
+                if old_closer is not None:
+                    try:
+                        maybe = old_closer()
+                        if inspect.isawaitable(maybe):
+                            await maybe
+                    except Exception:
+                        pass
+                response = await client.messages.create(**create_kwargs)
+            else:
+                raise
         content = response.content[0].text
 
         input_tokens = estimated_input_tokens
